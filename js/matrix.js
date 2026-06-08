@@ -1,12 +1,12 @@
 /**
- * 字詞矩陣模組 — 4x4 動態補位演算法 (Candy Crush 核心)
+ * 字詞矩陣模組 — 3x3 動態補位演算法
  */
 
 const FIRE_RADICAL_CHARS = [
   '火', '炎', '焰', '燒', '煮', '烤', '炒', '炸', '煙', '燈',
   '爐', '炊', '爆', '烈', '燙', '燭', '焚', '熄', '蒸', '煜',
   '煉', '熱', '烘', '炙', '燦', '煥', '燼', '燻', '煎', '熬',
-  '熏', '焦', '煤', '炭', '炬', '烙', '燦', '燦', '燦', '燦',
+  '熏', '焦', '煤', '炭', '炬', '烙',
 ];
 
 const NON_FIRE_CHARS = [
@@ -16,7 +16,9 @@ const NON_FIRE_CHARS = [
   '山', '川', '日', '月', '星', '光', '電', '雷', '霧', '露',
 ];
 
-const MATRIX_SIZE = 4;
+export const MATRIX_SIZE = 3;
+export const MAX_FIRE_CELLS = 4;
+const REFILL_NON_FIRE_RATE = 0.7;
 const COOLDOWN_MS = 500;
 
 export class WordMatrix {
@@ -54,12 +56,31 @@ export class WordMatrix {
     return char.includes(this.radical);
   }
 
+  _randomChar(isFire) {
+    const pool = isFire ? FIRE_RADICAL_CHARS : NON_FIRE_CHARS;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  _countFireCells() {
+    return this.cells.filter((cell) => this._hasRadical(cell.dataset.word)).length;
+  }
+
+  /** 補位：70% 非火字；若已達火字上限則必為非火字 */
+  _refillChar() {
+    const fireCount = this._countFireCells();
+    if (fireCount >= MAX_FIRE_CELLS) {
+      return this._randomChar(false);
+    }
+    const useNonFire = Math.random() < REFILL_NON_FIRE_RATE;
+    return this._randomChar(!useNonFire);
+  }
+
   _handleCorrect(cell) {
     cell.classList.add('correct');
     this.onCorrect(cell.dataset.word);
 
     setTimeout(() => {
-      const newChar = this._randomChar(true);
+      const newChar = this._refillChar();
       cell.dataset.word = newChar;
       cell.textContent = newChar;
       cell.classList.remove('correct');
@@ -84,20 +105,14 @@ export class WordMatrix {
     }, COOLDOWN_MS);
   }
 
-  _randomChar(isFire) {
-    const pool = isFire ? FIRE_RADICAL_CHARS : NON_FIRE_CHARS;
-    return pool[Math.floor(Math.random() * pool.length)];
-  }
-
   _generateBoard() {
-    const board = [];
     const total = MATRIX_SIZE * MATRIX_SIZE;
-    const fireCount = Math.ceil(total * 0.4);
+    const board = [];
 
-    for (let i = 0; i < fireCount; i++) {
+    for (let i = 0; i < MAX_FIRE_CELLS; i++) {
       board.push(this._randomChar(true));
     }
-    for (let i = fireCount; i < total; i++) {
+    for (let i = MAX_FIRE_CELLS; i < total; i++) {
       board.push(this._randomChar(false));
     }
 
@@ -129,4 +144,4 @@ export class WordMatrix {
   }
 }
 
-export { FIRE_RADICAL_CHARS, NON_FIRE_CHARS, MATRIX_SIZE };
+export { FIRE_RADICAL_CHARS, NON_FIRE_CHARS };

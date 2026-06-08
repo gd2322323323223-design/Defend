@@ -11,109 +11,111 @@ const MAGE_DEBUFF_THRESHOLD = 15;
 const MAGE_DEBUFF_RATE = 0.35;
 const ASSASSIN_CRIT_RATE = 0.25;
 
-function calcPlayerContribution(role, score) {
-  let damage = 0;
-  let shield = 0;
-  let debuff = false;
-  let crit = false;
-
-  if (!role || score <= 0) {
-    return { damage, shield, debuff, crit };
-  }
-
-  if (role === 'knight') {
-    shield = score * 1.5;
-  } else if (role === 'warrior') {
-    damage = score * 0.6;
-    shield = score * 0.6;
-  } else if (role === 'mage') {
-    damage = score * 0.8;
-    if (score >= MAGE_DEBUFF_THRESHOLD && Math.random() < MAGE_DEBUFF_RATE) {
-      debuff = true;
+/** 每次答對獨立產生一筆命中 */
+function rollHit(classId) {
+  switch (classId) {
+    case 'knight':
+      return { shield: 1.5, shieldDisplay: 1 };
+    case 'warrior':
+      return { damage: 0.6, shield: 0.6, damageDisplay: 1, shieldDisplay: 1 };
+    case 'mage':
+      return { damage: 1, damageDisplay: 1 };
+    case 'assassin': {
+      const crit = Math.random() < ASSASSIN_CRIT_RATE;
+      return {
+        damage: crit ? 1.4 : 0.7,
+        damageDisplay: crit ? 2 : 1,
+        crit,
+      };
     }
-  } else if (role === 'assassin') {
-    damage = score * 0.7;
-    if (Math.random() < ASSASSIN_CRIT_RATE) {
-      damage *= 2;
-      crit = true;
-    }
+    default:
+      return {};
   }
-
-  return { damage, shield, debuff, crit };
 }
 
 export function getBossRoundInfo(bossRound) {
   if (bossRound % 3 === 2) {
-    return { type: 'ultimate', rawDamage: 45, label: '大招', sucking: false };
+    return { type: 'ultimate', rawDamage: 40, label: '大招', sucking: false };
   }
   if (bossRound % 3 === 0) {
-    return { type: 'lifesteal', rawDamage: 20, label: '金蟬脫殼', sucking: true };
+    return { type: 'lifesteal', rawDamage: 15, label: '金蟬脫殼', sucking: true };
   }
-  return { type: 'normal', rawDamage: 25, label: '普通攻擊', sucking: false };
+  return { type: 'normal', rawDamage: 20, label: '普通攻擊', sucking: false };
+}
+
+function sumHits(hits, key) {
+  return hits.reduce((s, h) => s + (h[key] || 0), 0);
 }
 
 /**
- * 戰鬥結算函式 — 依本輪答對題數計算傷害、護盾與 Boss 反擊
+ * 戰鬥結算 — 僅計算，不修改 HP（由 game.js 逐次套用）
  */
-export function calculateBattleResult(combat, bossRound) {
-  const p1 = combat.players[0];
-  const p2 = combat.players[1];
-  const p1Role = p1?.class?.id;
-  const p2Role = p2?.class?.id;
-  const p1Score = p1?.roundScore || 0;
-  const p2Score = p2?.roundScore || 0;
+export function computeBattleResult(combat, bossRound) {
+  const players = combat.players.map((p, index) => {
+    const damageHits = p.damageHits || [];
+    const shieldHits = p.shieldHits || [];
+    return {
+      index,
+      role: p.class?.id,
+      score: p.roundScore || 0,
+      damageHits,
+      shieldHits,
+      damage: sumHits(damageHits, 'amount'),
+      shield: sumHits(shieldHits, 'amount'),
+      crit: damageHits.some((h) => h.crit),
+    };
+  });
 
-  const c1 = calcPlayerContribution(p1Role, p1Score);
-  const c2 = calcPlayerContribution(p2Role, p2Score);
+  const totalDamage = players.reduce((s, p) => s + p.damage, 0);
+  const totalShield = players.reduce((s, p) => s + p.shield, 0);
 
-  const totalDamage = c1.damage + c2.damage;
-  const totalShield = c1.shield + c2.shield;
-  const nextBossDebuff = c1.debuff || c2.debuff;
+  let nextBossDebuff = false;
+  for (const p of players) {
+    if (p.role === 'mage' && p.score >= MAGE_DEBUFF_THRESHOLD && Math.random() < MAGE_DEBUFF_RATE) {
+      nextBossDebuff = true;
+      break;
+    }
+  }
 
   const roundInfo = getBossRoundInfo(bossRound);
   let bossRawDamage = roundInfo.rawDamage;
+  const bossDebuffApplied = combat.bossIsDebuffed;
 
-  if (combat.bossIsDebuffed) {
+  if (bossDebuffApplied) {
     bossRawDamage *= 0.5;
-    combat.bossIsDebuffed = false;
   }
 
   let finalDamageToHero = bossRawDamage - totalShield;
   if (finalDamageToHero < 0) finalDamageToHero = 0;
+  finalDamageToHero = Math.round(finalDamageToHero);
 
   let bossHeal = 0;
   if (roundInfo.sucking) {
     bossHeal = finalDamageToHero;
   }
 
-  combat.enemyHp = Math.max(0, combat.enemyHp - totalDamage);
-  combat.teamHp = Math.max(0, combat.teamHp - finalDamageToHero);
-  combat.enemyHp += bossHeal;
-
-  if (nextBossDebuff) combat.bossIsDebuffed = true;
-
-  combat.battleTotalDamage += totalDamage;
-  combat.battleTotalShield += totalShield;
-
-  if (combat.enemyHp <= 0) combat.victory = true;
-  if (combat.teamHp <= 0) combat.defeat = true;
-
   return {
-    players: [
-      { index: 0, role: p1Role, score: p1Score, ...c1 },
-      { index: 1, role: p2Role, score: p2Score, ...c2 },
-    ],
+    players,
     damageDealt: totalDamage,
     shieldGenerated: totalShield,
     damageReceived: finalDamageToHero,
     bossHeal,
     debuffTriggered: nextBossDebuff,
-    bossDebuffApplied: bossRawDamage < roundInfo.rawDamage,
+    bossDebuffApplied,
     bossRound: roundInfo,
     bossRawDamage: roundInfo.rawDamage,
     bossFinalDamage: bossRawDamage,
     blocked: Math.max(0, bossRawDamage - finalDamageToHero),
   };
+}
+
+/** 結算完成後寫入狀態 */
+export function applyBattleResult(combat, result) {
+  if (result.bossDebuffApplied) combat.bossIsDebuffed = false;
+  if (result.debuffTriggered) combat.bossIsDebuffed = true;
+
+  combat.battleTotalDamage += result.damageDealt;
+  combat.battleTotalShield += result.shieldGenerated;
 }
 
 export class CombatState {
@@ -139,6 +141,8 @@ export class CombatState {
     this.round++;
     this.players.forEach((p) => {
       p.roundScore = 0;
+      p.damageHits = [];
+      p.shieldHits = [];
     });
   }
 
@@ -151,14 +155,32 @@ export class CombatState {
       class: classConfig,
       roundScore: 0,
       correctCount: 0,
+      damageHits: [],
+      shieldHits: [],
     });
   }
 
-  applyCorrect(playerIndex) {
+  applyCorrect(playerIndex, classConfig) {
     const player = this.players[playerIndex];
     if (!player) return;
+
     player.roundScore++;
     player.correctCount++;
+
+    const hit = rollHit(classConfig.id);
+    if (hit.damage) {
+      player.damageHits.push({
+        amount: hit.damage,
+        display: hit.damageDisplay,
+        crit: hit.crit || false,
+      });
+    }
+    if (hit.shield) {
+      player.shieldHits.push({
+        amount: hit.shield,
+        display: hit.shieldDisplay,
+      });
+    }
   }
 
   getHpPercent() {

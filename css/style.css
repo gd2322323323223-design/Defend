@@ -504,10 +504,10 @@ html, body {
   color: #c62828;
 }
 
-/* 4x4 字詞矩陣 */
+/* 3x3 字詞矩陣 */
 .word-matrix {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
   flex: 1;
   align-content: center;

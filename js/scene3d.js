@@ -309,7 +309,7 @@ export class Scene3D {
   }
 
   /** 逐次攻擊 Boss，每次顯示獨立傷害數字 */
-  async playHeroAttackHits(heroId, hits) {
+  async playHeroAttackHits(heroId, hits, onHit) {
     const hero = this.models[heroId];
     const enemy = this.models.enemy;
     if (!hero || !enemy || !hits.length) return;
@@ -321,28 +321,30 @@ export class Scene3D {
       this.vfx.spawnProjectile(hero, enemy, hit.crit ? 0xffd54f : 0xff6b35);
       await delay(220);
       this.vfx.spawnHitFlash(enemy, hit.crit ? 0xffd54f : 0xff4444);
-      const label = hit.crit ? `-${hit.amount} 暴擊!` : `-${hit.amount}`;
+      const label = hit.crit ? `-${hit.display} 暴擊!` : `-${hit.display}`;
       this.vfx.showDamageNumber(enemy, label, hit.crit ? '#ffd54f' : '#ff3333', i);
       this._shakeModel(enemy);
+      if (onHit) onHit(hit);
       await delay(180);
     }
   }
 
   /** 逐次防禦，每次 +1 盾 */
-  async playHeroShieldHits(heroId, count) {
+  async playHeroShieldHits(heroId, hits) {
     const hero = this.models[heroId];
-    if (!hero || count <= 0) return;
+    if (!hero || !hits.length) return;
 
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < hits.length; i++) {
+      const hit = hits[i];
       this._playAnimation(heroId, 'block', { loop: false });
       this.vfx.spawnShieldFlash(hero);
-      this.vfx.showDamageNumber(hero, '+1 盾', '#4fc3f7', i);
+      this.vfx.showDamageNumber(hero, `+${hit.display} 盾`, '#4fc3f7', i);
       await delay(200);
     }
   }
 
-  /** Boss 反擊隊伍，顯示聚合傷害 */
-  async playBossAttackTeam(totalDamage) {
+  /** Boss 反擊隊伍，逐次顯示 -1 */
+  async playBossAttackTeam(totalDamage, onHit) {
     if (totalDamage <= 0) return;
     const enemy = this.models.enemy;
     const teamTarget = this.getFrontHeroModel() || this.models[this.heroIds[0]];
@@ -350,13 +352,18 @@ export class Scene3D {
 
     this._playAnimation('enemy', 'attack', { loop: false });
     await delay(200);
-    this.vfx.spawnProjectile(enemy, teamTarget, 0x88ccff);
-    await delay(180);
-    this.vfx.spawnHitFlash(teamTarget, 0xef5350);
-    this.vfx.showDamageNumber(teamTarget, `-${Math.round(totalDamage)}`, '#ef5350', 0);
+
+    for (let i = 0; i < totalDamage; i++) {
+      this.vfx.spawnProjectile(enemy, teamTarget, 0x88ccff);
+      await delay(180);
+      this.vfx.spawnHitFlash(teamTarget, 0xef5350);
+      this.vfx.showDamageNumber(teamTarget, '-1', '#ef5350', i);
+      if (onHit) onHit();
+      await delay(120);
+    }
+
     this._shakeModel(teamTarget);
     this.heroIds.forEach((id) => this._playAnimation(id, 'hit', { loop: false }));
-    await delay(300);
   }
 
   playEnemyDeath() {
