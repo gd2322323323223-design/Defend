@@ -222,8 +222,8 @@ html, body {
   flex: 1;
   min-height: 0;
   position: relative;
-  border-bottom: 3px solid rgba(255, 107, 53, 0.6);
-  background: linear-gradient(180deg, rgba(255, 107, 53, 0.15) 0%, transparent 100%);
+  border-bottom: 3px solid rgba(255, 107, 53, 0.5);
+  background: transparent;
   pointer-events: none;
 }
 
@@ -308,10 +308,34 @@ html, body {
   50% { transform: scale(1.15); color: #ff1744; }
 }
 
-.player-status {
+.player-status,
+.player-hp-row {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
+}
+
+.player-hp-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 20, 40, 0.85);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  backdrop-filter: blur(4px);
+}
+
+.hp-bar-container.small {
+  width: 80px;
+  height: 14px;
+  max-width: none;
+  margin-top: 0;
+}
+
+.player-hp-fill {
+  background: linear-gradient(90deg, #66bb6a, #a5d6a7) !important;
 }
 
 .status-chip {

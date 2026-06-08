@@ -5,7 +5,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EquipmentManager } from './equipment.js';
-import { ANIMATION_FILES, ANIM_MAP } from './models-config.js';
+import { BattleVFX, delay } from './vfx.js';
+import { ANIMATION_FILES, ANIM_MAP, BATTLE_FORMATION } from './models-config.js';
 
 export class Scene3D {
   constructor(canvas) {
@@ -15,24 +16,26 @@ export class Scene3D {
     this.animClips = { hero: null, enemy: null };
     this.animations = {};
     this.models = {};
+    this.heroIds = [];
     this.isBattleLayout = false;
     this._init();
   }
 
   setBattleLayout(isBattle) {
     this.isBattleLayout = isBattle;
+    if (isBattle) {
+      this._applyBattleCamera();
+    }
     this._onResize();
   }
 
   _init() {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0a0e1a);
-    this.scene.fog = new THREE.Fog(0x0a0e1a, 10, 30);
+    this.scene.background = new THREE.Color(0x12182b);
 
     const aspect = window.innerWidth / window.innerHeight;
-    this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 100);
-    this.camera.position.set(0, 2.5, 6);
-    this.camera.lookAt(0, 1.2, 0);
+    this.camera = new THREE.PerspectiveCamera(40, aspect, 0.1, 100);
+    this._applyBattleCamera();
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
@@ -43,29 +46,57 @@ export class Scene3D {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.15;
 
-    this.scene.add(new THREE.AmbientLight(0x404060, 0.6));
+    this.scene.add(new THREE.AmbientLight(0x8899bb, 0.85));
 
-    const dirLight = new THREE.DirectionalLight(0xffeedd, 1.2);
-    dirLight.position.set(3, 6, 4);
-    dirLight.castShadow = true;
-    this.scene.add(dirLight);
+    const keyLight = new THREE.DirectionalLight(0xfff5e6, 1.4);
+    keyLight.position.set(2, 8, 5);
+    keyLight.castShadow = true;
+    this.scene.add(keyLight);
 
-    const rimLight = new THREE.DirectionalLight(0x6688ff, 0.4);
-    rimLight.position.set(-3, 2, -2);
+    const fillLight = new THREE.DirectionalLight(0x6688ff, 0.55);
+    fillLight.position.set(-4, 4, 2);
+    this.scene.add(fillLight);
+
+    const rimLight = new THREE.DirectionalLight(0xffaa66, 0.45);
+    rimLight.position.set(0, 3, -5);
     this.scene.add(rimLight);
 
     const ground = new THREE.Mesh(
-      new THREE.CircleGeometry(8, 32),
-      new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.9 }),
+      new THREE.CircleGeometry(10, 48),
+      new THREE.MeshStandardMaterial({ color: 0x1e2438, roughness: 0.95, metalness: 0 }),
     );
     ground.rotation.x = -Math.PI / 2;
+    ground.position.y = 0;
     ground.receiveShadow = true;
+    ground.renderOrder = 0;
+    this.ground = ground;
     this.scene.add(ground);
 
+    this.vfx = new BattleVFX(this.scene);
     this.clock = new THREE.Clock();
     this._animate();
     window.addEventListener('resize', () => this._onResize());
+  }
+
+  _applyBattleCamera() {
+    this.camera.position.set(0, 1.6, 5.5);
+    this.camera.lookAt(0, 1.1, 0);
+  }
+
+  _elevateModel(model) {
+    model.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = false;
+        child.renderOrder = 10;
+        if (child.material) {
+          child.material.depthWrite = true;
+          child.material.fog = false;
+        }
+      }
+    });
   }
 
   async _loadAnimClips(type) {
@@ -97,21 +128,18 @@ export class Scene3D {
   async loadEnemy(path) {
     const model = await this._loadModel(path, 'enemy', 'enemy');
     if (model) {
-      model.position.set(0, 0, -2);
-      model.scale.setScalar(1);
+      this._placeEnemy();
       this._playAnimation('enemy', 'idle', { loop: true });
     }
     return model;
   }
 
-  async loadHero(classId, path, side = 'left', defaultEquipment = null) {
-    const x = side === 'left' ? -2 : 2;
+  async loadHero(classId, path, slotIndex = 0, defaultEquipment = null) {
     const model = await this._loadModel(path, classId, 'hero');
     if (model) {
-      model.position.set(x, 0, 1.5);
-      model.rotation.y = side === 'left' ? 0.4 : -0.4;
-      model.scale.setScalar(1);
+      this._placeHero(classId, slotIndex);
       this._playAnimation(classId, 'idle', { loop: true });
+      if (!this.heroIds.includes(classId)) this.heroIds.push(classId);
 
       if (defaultEquipment) {
         await this.equipmentManager.attachEquipment(
@@ -124,6 +152,29 @@ export class Scene3D {
     return model;
   }
 
+  _placeEnemy() {
+    const m = this.models.enemy;
+    if (!m) return;
+    const { x, y, z, rotY } = BATTLE_FORMATION.enemy;
+    m.position.set(x, y, z);
+    m.rotation.y = rotY;
+    m.scale.setScalar(1.05);
+  }
+
+  _placeHero(classId, slotIndex) {
+    const m = this.models[classId];
+    const slot = BATTLE_FORMATION.heroSlots[slotIndex] || BATTLE_FORMATION.heroSlots[0];
+    if (!m || !slot) return;
+    m.position.set(slot.x, slot.y, slot.z);
+    m.rotation.y = slot.rotY;
+    m.scale.setScalar(1);
+  }
+
+  layoutBattleFormation(heroClassIds) {
+    this._placeEnemy();
+    heroClassIds.forEach((id, i) => this._placeHero(id, i));
+  }
+
   async _loadModel(path, key, animType) {
     if (this.models[key]) return this.models[key];
 
@@ -134,12 +185,7 @@ export class Scene3D {
       ]);
 
       const model = gltf.scene;
-      model.traverse((child) => {
-        if (child.isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-        }
-      });
+      this._elevateModel(model);
 
       const mixer = new THREE.AnimationMixer(model);
       this.animations[key] = { mixer, clips };
@@ -158,73 +204,117 @@ export class Scene3D {
   _createPlaceholder(key) {
     const group = new THREE.Group();
     const isEnemy = key === 'enemy';
-    const bodyGeo = isEnemy
-      ? new THREE.CapsuleGeometry(0.4, 1.2, 8, 16)
-      : new THREE.CapsuleGeometry(0.35, 1.0, 8, 16);
     const body = new THREE.Mesh(
-      bodyGeo,
+      isEnemy ? new THREE.CapsuleGeometry(0.4, 1.2, 8, 16) : new THREE.CapsuleGeometry(0.35, 1.0, 8, 16),
       new THREE.MeshStandardMaterial({
         color: isEnemy ? 0xeeeeee : (key === 'mage' ? 0x7c4dff : 0x4fc3f7),
         roughness: 0.6,
+        fog: false,
       }),
     );
     body.position.y = 1;
+    body.renderOrder = 10;
     group.add(body);
     return group;
   }
 
   _playAnimation(modelKey, actionName, { loop = false } = {}) {
     const anim = this.animations[modelKey];
-    if (!anim || !anim.clips.length) return;
+    if (!anim || !anim.clips.length) return Promise.resolve();
 
     const clip = this._findClip(anim.clips, actionName);
-    if (!clip) return;
+    if (!clip) return Promise.resolve();
 
-    anim.mixer.stopAllAction();
-    const action = anim.mixer.clipAction(clip);
-    action.reset().fadeIn(0.2).play();
+    return new Promise((resolve) => {
+      anim.mixer.stopAllAction();
+      const action = anim.mixer.clipAction(clip);
+      action.reset().fadeIn(0.15).play();
 
-    if (loop) {
-      action.setLoop(THREE.LoopRepeat);
-      action.clampWhenFinished = false;
-    } else {
-      action.setLoop(THREE.LoopOnce, 1);
-      action.clampWhenFinished = true;
-
-      const onFinished = (e) => {
-        if (e.action !== action) return;
-        anim.mixer.removeEventListener('finished', onFinished);
-        this._playAnimation(modelKey, 'idle', { loop: true });
-      };
-      anim.mixer.addEventListener('finished', onFinished);
-    }
+      if (loop) {
+        action.setLoop(THREE.LoopRepeat);
+        action.clampWhenFinished = false;
+        resolve();
+      } else {
+        action.setLoop(THREE.LoopOnce, 1);
+        action.clampWhenFinished = true;
+        const onFinished = (e) => {
+          if (e.action !== action) return;
+          anim.mixer.removeEventListener('finished', onFinished);
+          this._playAnimation(modelKey, 'idle', { loop: true });
+          resolve();
+        };
+        anim.mixer.addEventListener('finished', onFinished);
+        setTimeout(resolve, 900);
+      }
+    });
   }
 
   playHeroAction(classId, action) {
-    this._playAnimation(classId, action, { loop: false });
+    return this._playAnimation(classId, action, { loop: false });
+  }
+
+  async playHeroAttackBoss(heroId, damage) {
+    if (damage <= 0) return;
+    const hero = this.models[heroId];
+    const enemy = this.models.enemy;
+    if (!hero || !enemy) return;
+
+    await this._playAnimation(heroId, 'attack', { loop: false });
+    this.vfx.spawnProjectile(hero, enemy, 0xff6b35);
+    await delay(420);
+    this.vfx.spawnHitFlash(enemy, 0xff4444);
+    this.vfx.showDamageNumber(enemy, `-${damage}`, '#ff3333');
+    await this._playAnimation('enemy', 'hit', { loop: false });
+    this._shakeModel(enemy);
+  }
+
+  async playHeroDefend(heroId, shieldGain) {
+    if (shieldGain <= 0) return;
+    const hero = this.models[heroId];
+    if (!hero) return;
+
+    await this._playAnimation(heroId, 'block', { loop: false });
+    this.vfx.spawnShieldFlash(hero);
+    this.vfx.showDamageNumber(hero, `+${shieldGain} 盾`, '#4fc3f7');
+  }
+
+  async playBossAttackPlayer(targetHeroId, damage) {
+    if (damage <= 0) return;
+    const enemy = this.models.enemy;
+    const hero = this.models[targetHeroId];
+    if (!enemy || !hero) return;
+
+    await this._playAnimation('enemy', 'attack', { loop: false });
+    this.vfx.spawnProjectile(enemy, hero, 0x88ccff);
+    await delay(420);
+    this.vfx.spawnHitFlash(hero, 0xef5350);
+    this.vfx.showDamageNumber(hero, `-${damage}`, '#ef5350');
+    await this._playAnimation(targetHeroId, 'hit', { loop: false });
+    this._shakeModel(hero);
   }
 
   playEnemyHit() {
     this._playAnimation('enemy', 'hit', { loop: false });
-    this.shakeEnemy();
+    this._shakeModel(this.models.enemy);
   }
 
   playEnemyDeath() {
-    this._playAnimation('enemy', 'death', { loop: false });
+    return this._playAnimation('enemy', 'death', { loop: false });
   }
 
-  shakeEnemy() {
-    const enemy = this.models.enemy;
-    if (!enemy) return;
-
-    const originalX = enemy.position.x;
+  _shakeModel(model) {
+    if (!model) return;
+    const ox = model.position.x;
+    const oz = model.position.z;
     let frame = 0;
     const shake = () => {
-      if (frame >= 20) {
-        enemy.position.x = originalX;
+      if (frame >= 16) {
+        model.position.x = ox;
+        model.position.z = oz;
         return;
       }
-      enemy.position.x = originalX + (Math.random() - 0.5) * 0.3;
+      model.position.x = ox + (Math.random() - 0.5) * 0.2;
+      model.position.z = oz + (Math.random() - 0.5) * 0.1;
       frame++;
       requestAnimationFrame(shake);
     };
@@ -245,7 +335,9 @@ export class Scene3D {
     Object.values(this.models).forEach((m) => this.scene.remove(m));
     this.models = {};
     this.animations = {};
+    this.heroIds = [];
     this.equipmentManager.detachAll();
+    this.vfx.clear();
   }
 
   _onResize() {

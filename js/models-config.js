@@ -9,6 +9,15 @@ const SKELETONS = `${CHAR_BASE}/Skeletons/gltf`;
 const ANIM_HERO = `${CHAR_BASE}/Animations/gltf/Rig_Medium`;
 const ANIM_SKELETON = `${CHAR_BASE}/Skeletons/Animations/gltf/Rig_Medium`;
 
+/** 戰鬥站位：玩家在左、Boss 在右，互相對視 */
+export const BATTLE_FORMATION = {
+  enemy: { x: 3.2, y: 0.08, z: 0, rotY: -Math.PI / 2 },
+  heroSlots: [
+    { x: -3.2, y: 0.08, z: -0.75, rotY: Math.PI / 2 },
+    { x: -3.2, y: 0.08, z: 0.75, rotY: Math.PI / 2 },
+  ],
+};
+
 export const ANIMATION_FILES = {
   hero: {
     general: `${ANIM_HERO}/Rig_Medium_General.glb`,

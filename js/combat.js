@@ -4,6 +4,9 @@
 
 import { ENEMY } from './ai-taunt.js';
 
+export const PLAYER_MAX_HP = 10;
+export const ROUND_DURATION = 10;
+
 export class CombatState {
   constructor() {
     this.reset();
@@ -17,6 +20,7 @@ export class CombatState {
     this.totalShield = 0;
     this.totalDamage = 0;
     this.victory = false;
+    this.defeat = false;
   }
 
   addPlayer(classConfig) {
@@ -25,6 +29,8 @@ export class CombatState {
       shield: 0,
       damage: 0,
       correctCount: 0,
+      hp: PLAYER_MAX_HP,
+      maxHp: PLAYER_MAX_HP,
     });
   }
 
@@ -54,29 +60,42 @@ export class CombatState {
     }
   }
 
-  resolveRound() {
-    const netDamage = Math.max(0, this.totalDamage);
+  /** 結算數值（不含動畫） */
+  computeRound() {
+    const damageDealt = Math.max(0, this.totalDamage);
     const blocked = Math.min(this.totalShield, ENEMY.attackDamage);
     const enemyAttack = Math.max(0, ENEMY.attackDamage - blocked);
 
-    this.enemyHp = Math.max(0, this.enemyHp - netDamage);
+    return { damageDealt, blocked, enemyAttack };
+  }
 
-    if (this.enemyHp <= 0) {
-      this.victory = true;
-    }
+  applyBossDamage(damageDealt) {
+    this.enemyHp = Math.max(0, this.enemyHp - damageDealt);
+    if (this.enemyHp <= 0) this.victory = true;
+  }
 
-    return {
-      damageDealt: netDamage,
-      damageBlocked: blocked,
-      enemyAttack,
-      enemyHp: this.enemyHp,
-      victory: this.victory,
-    };
+  applyPlayerDamage(amount) {
+    if (amount <= 0 || this.players.length === 0) return null;
+
+    const target = this.players.find((p) => p.class.role === 'tank') || this.players[0];
+    target.hp = Math.max(0, target.hp - amount);
+    if (this.players.every((p) => p.hp <= 0)) this.defeat = true;
+    return target;
   }
 
   getHpPercent() {
     return (this.enemyHp / this.enemyMaxHp) * 100;
   }
-}
 
-export const ROUND_DURATION = 10;
+  getAttackers() {
+    return this.players
+      .map((p, i) => ({ player: p, index: i }))
+      .filter(({ player }) => player.class.role === 'dps' || player.class.role === 'hybrid');
+  }
+
+  getDefenders() {
+    return this.players
+      .map((p, i) => ({ player: p, index: i }))
+      .filter(({ player }) => player.class.role === 'tank');
+  }
+}
