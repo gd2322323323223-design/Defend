@@ -44,6 +44,15 @@ html, body {
   width: 100%;
   height: 100%;
   z-index: 0;
+  transition: height 0.3s ease;
+}
+
+/* 戰鬥中：上半部 Boss 3D 場景 */
+#app.battle-active #scene-canvas {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 50%;
 }
 
 .screen {
@@ -193,10 +202,38 @@ html, body {
   line-height: 1.6;
 }
 
-/* 戰鬥 UI */
+/* 戰鬥 UI — 上 Boss / 下玩家分屏 */
 #screen-battle {
-  justify-content: flex-start;
-  padding-top: 12px;
+  padding: 0;
+  background: transparent;
+  justify-content: stretch;
+  align-items: stretch;
+  pointer-events: none;
+}
+
+.battle-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.boss-zone {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  border-bottom: 3px solid rgba(255, 107, 53, 0.6);
+  background: linear-gradient(180deg, rgba(255, 107, 53, 0.15) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.boss-hud {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 5;
+  pointer-events: none;
 }
 
 .battle-header {
@@ -204,11 +241,11 @@ html, body {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  max-width: 900px;
   padding: 8px 16px;
-  background: var(--bg-panel);
+  background: rgba(15, 20, 40, 0.85);
   border-radius: var(--radius);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  backdrop-filter: blur(6px);
 }
 
 .enemy-info {
@@ -273,10 +310,8 @@ html, body {
 
 .player-status {
   display: flex;
-  gap: 12px;
-  width: 100%;
-  max-width: 900px;
-  margin-bottom: 8px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .status-chip {
@@ -297,51 +332,71 @@ html, body {
   color: var(--accent-magic);
 }
 
-/* 戰鬥區域 — Flexbox 分屏 */
-.battle-arena {
-  display: flex;
+/* 下半部 — 玩家 1（黃）/ 玩家 2（青）分屏 */
+.players-row {
   flex: 1;
-  width: 100%;
-  max-width: 900px;
-  gap: 12px;
-  min-height: 0;
-}
-
-.battle-arena.split {
+  display: flex;
   flex-direction: row;
-}
-
-.battle-arena.sequential .player-zone:not(.active-zone) {
-  display: none;
+  min-height: 0;
+  pointer-events: auto;
 }
 
 .player-zone {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: var(--bg-panel);
-  border-radius: var(--radius);
-  padding: 12px;
-  border: 2px solid transparent;
+  padding: 10px;
+  border: 3px solid transparent;
   transition: border-color 0.3s, box-shadow 0.3s;
   min-width: 0;
+  overflow: hidden;
+}
+
+.player-zone-p1 {
+  background: #ffeb3b;
+  color: #1a1a2e;
+  border-right: 2px solid rgba(0, 0, 0, 0.15);
+}
+
+.player-zone-p2 {
+  background: #00e5ff;
+  color: #1a1a2e;
 }
 
 .player-zone.active-zone {
-  border-color: var(--accent-gold);
-  box-shadow: 0 0 30px rgba(255, 213, 79, 0.25);
+  border-color: #ff6b35;
+  box-shadow: inset 0 0 24px rgba(255, 107, 53, 0.35);
 }
 
 .player-zone.hidden {
   display: none;
 }
 
+/* 單人 / 輪流模式：只顯示當前玩家，佔滿下半部 */
+.players-row.solo .player-zone-p2,
+.players-row.sequential .player-zone:not(.active-zone) {
+  display: none;
+}
+
+.players-row.solo .player-zone-p1,
+.players-row.sequential .player-zone.active-zone {
+  flex: 1;
+  border-right: none;
+}
+
 .zone-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   font-weight: 700;
+  flex-shrink: 0;
+}
+
+.zone-label {
+  font-size: 0.85rem;
+  opacity: 0.75;
+  margin-right: 4px;
 }
 
 .class-icon {
@@ -351,7 +406,8 @@ html, body {
 .zone-score {
   margin-left: auto;
   font-size: 0.9rem;
-  color: var(--accent-gold);
+  font-weight: 800;
+  color: #c62828;
 }
 
 /* 4x4 字詞矩陣 */
@@ -368,11 +424,12 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(30, 40, 70, 0.8);
-  border: 2px solid rgba(100, 120, 200, 0.3);
+  background: rgba(255, 255, 255, 0.75);
+  border: 2px solid rgba(0, 0, 0, 0.15);
   border-radius: 8px;
   font-size: clamp(1.2rem, 4vw, 1.8rem);
   font-weight: 700;
+  color: #1a1a2e;
   cursor: pointer;
   user-select: none;
   transition: transform 0.1s, background 0.15s, border-color 0.15s;
@@ -411,7 +468,7 @@ html, body {
 
 .turn-indicator {
   position: fixed;
-  bottom: 24px;
+  top: 42%;
   left: 50%;
   transform: translateX(-50%);
   background: var(--accent-gold);
@@ -421,11 +478,12 @@ html, body {
   font-weight: 700;
   font-size: 1rem;
   z-index: 20;
+  pointer-events: none;
   animation: indicator-bounce 0.6s ease;
 }
 
 @keyframes indicator-bounce {
-  0% { transform: translateX(-50%) translateY(20px); opacity: 0; }
+  0% { transform: translateX(-50%) translateY(-10px); opacity: 0; }
   100% { transform: translateX(-50%) translateY(0); opacity: 1; }
 }
 
@@ -459,9 +517,3 @@ html, body {
   display: none !important;
 }
 
-/* iPad 直向分屏 */
-@media (orientation: portrait) and (max-width: 900px) {
-  .battle-arena.split {
-    flex-direction: column;
-  }
-}

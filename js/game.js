@@ -53,7 +53,7 @@ export class Game {
     hint.style.cssText = 'grid-column: 1/-1; text-align:center; color:#9fa8da; margin-bottom:8px;';
     hint.textContent = maxPlayers === 1
       ? '選擇 1 個職業'
-      : '玩家 1 選騎士（坦），玩家 2 選法師（打）';
+      : '玩家 1 與玩家 2 各選一個職業';
     grid.appendChild(hint);
 
     Object.values(CLASSES).forEach((cls) => {
@@ -80,15 +80,6 @@ export class Game {
     } else if (this.selectedClasses.length < maxPlayers) {
       this.selectedClasses.push(cls);
       card.classList.add('selected');
-    }
-
-    if (this.mode !== 'single' && this.selectedClasses.length === 2) {
-      const hasKnight = this.selectedClasses.some((c) => c.id === 'knight');
-      const hasMage = this.selectedClasses.some((c) => c.id === 'mage');
-      if (!hasKnight || !hasMage) {
-        document.getElementById('btn-start-battle').disabled = true;
-        return;
-      }
     }
 
     document.getElementById('btn-start-battle').disabled =
@@ -132,12 +123,12 @@ export class Game {
   }
 
   _setupBattleUI() {
-    const arena = document.getElementById('battle-arena');
-    arena.className = 'battle-arena';
-    if (this.mode === 'dual-split') {
-      arena.classList.add('split');
-    } else {
-      arena.classList.add('sequential');
+    const row = document.getElementById('players-row');
+    row.className = 'players-row';
+    if (this.mode === 'single') {
+      row.classList.add('solo');
+    } else if (this.mode === 'dual-sequential') {
+      row.classList.add('sequential');
     }
 
     const statusEl = document.getElementById('player-status');
@@ -362,5 +353,11 @@ export class Game {
   _showScreen(id) {
     document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
+
+    const isBattle = id === 'screen-battle';
+    document.getElementById('app').classList.toggle('battle-active', isBattle);
+    if (this.scene3d) {
+      this.scene3d.setBattleLayout(isBattle);
+    }
   }
 }

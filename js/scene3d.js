@@ -15,7 +15,13 @@ export class Scene3D {
     this.animClips = { hero: null, enemy: null };
     this.animations = {};
     this.models = {};
+    this.isBattleLayout = false;
     this._init();
+  }
+
+  setBattleLayout(isBattle) {
+    this.isBattleLayout = isBattle;
+    this._onResize();
   }
 
   _init() {
@@ -244,7 +250,7 @@ export class Scene3D {
 
   _onResize() {
     const w = window.innerWidth;
-    const h = window.innerHeight;
+    const h = this.isBattleLayout ? window.innerHeight * 0.5 : window.innerHeight;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);

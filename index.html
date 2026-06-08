@@ -38,44 +38,47 @@
       <button id="btn-ready" class="btn btn-primary">準備迎戰！</button>
     </section>
 
-    <!-- 戰鬥畫面 -->
+    <!-- 戰鬥畫面：上半 Boss 3D / 下半玩家分屏 -->
     <section id="screen-battle" class="screen">
-      <!-- 敵方資訊 -->
-      <div class="battle-header">
-        <div class="enemy-info">
-          <span class="enemy-name">👹 骷髏魔王</span>
-          <div class="hp-bar-container">
-            <div id="enemy-hp-bar" class="hp-bar"></div>
-            <span id="enemy-hp-text" class="hp-text">20 / 20</span>
+      <div class="battle-layout">
+        <div class="boss-zone" id="boss-zone">
+          <div class="boss-hud">
+            <div class="battle-header">
+              <div class="enemy-info">
+                <span class="enemy-name">👹 骷髏魔王</span>
+                <div class="hp-bar-container">
+                  <div id="enemy-hp-bar" class="hp-bar"></div>
+                  <span id="enemy-hp-text" class="hp-text">20 / 20</span>
+                </div>
+              </div>
+              <div id="round-timer" class="timer">10</div>
+            </div>
+            <div id="player-status" class="player-status"></div>
           </div>
         </div>
-        <div id="round-timer" class="timer">10</div>
+
+        <div id="players-row" class="players-row">
+          <div id="player1-zone" class="player-zone player-zone-p1 hidden">
+            <div class="zone-header">
+              <span class="zone-label">玩家 1</span>
+              <span id="p1-class-icon" class="class-icon">🛡️</span>
+              <span id="p1-class-name">騎士</span>
+              <span id="p1-score" class="zone-score">護盾: 0</span>
+            </div>
+            <div id="matrix-p1" class="word-matrix"></div>
+          </div>
+          <div id="player2-zone" class="player-zone player-zone-p2 hidden">
+            <div class="zone-header">
+              <span class="zone-label">玩家 2</span>
+              <span id="p2-class-icon" class="class-icon">🔮</span>
+              <span id="p2-class-name">法師</span>
+              <span id="p2-score" class="zone-score">傷害: 0</span>
+            </div>
+            <div id="matrix-p2" class="word-matrix"></div>
+          </div>
+        </div>
       </div>
 
-      <!-- 玩家狀態列 -->
-      <div id="player-status" class="player-status"></div>
-
-      <!-- 雙人分屏 / 單人矩陣區 -->
-      <div id="battle-arena" class="battle-arena">
-        <div id="player1-zone" class="player-zone hidden">
-          <div class="zone-header">
-            <span id="p1-class-icon" class="class-icon">🛡️</span>
-            <span id="p1-class-name">騎士</span>
-            <span id="p1-score" class="zone-score">護盾: 0</span>
-          </div>
-          <div id="matrix-p1" class="word-matrix"></div>
-        </div>
-        <div id="player2-zone" class="player-zone hidden">
-          <div class="zone-header">
-            <span id="p2-class-icon" class="class-icon">🔮</span>
-            <span id="p2-class-name">法師</span>
-            <span id="p2-score" class="zone-score">傷害: 0</span>
-          </div>
-          <div id="matrix-p2" class="word-matrix"></div>
-        </div>
-      </div>
-
-      <!-- 回合提示 -->
       <div id="turn-indicator" class="turn-indicator hidden"></div>
     </section>
 
