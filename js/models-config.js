@@ -46,7 +46,7 @@ export const PRELOAD_MODELS = [
   `${SKELETONS}/Skeleton_Warrior.glb`,
   `${HEROES}/Knight.glb`,
   `${HEROES}/Mage.glb`,
-  `${HEROES}/Rogue.glb`,
+  `${HEROES}/Rogue_Hooded.glb`,
   `${HEROES}/Barbarian.glb`,
 ];
 

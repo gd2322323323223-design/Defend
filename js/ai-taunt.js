@@ -57,7 +57,7 @@ export const CLASSES = {
     icon: '🗡️',
     role: 'dps',
     desc: '1 能量 = 1.4 傷害；每下 25% 暴擊 x2',
-    modelPath: `${HEROES}/Rogue.glb`,
+    modelPath: `${HEROES}/Rogue_Hooded.glb`,
     defaultEquipment: 'dagger',
     animAttack: 'attack',
     animIdle: 'idle',

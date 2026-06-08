@@ -378,10 +378,33 @@ export class Game {
     await this._resolveBossTurn();
   }
 
+  _showRoundScorePopup(count) {
+    return new Promise((resolve) => {
+      const popup = document.getElementById('round-score-popup');
+      const countEl = document.getElementById('score-popup-count');
+      if (!popup || !countEl) {
+        resolve();
+        return;
+      }
+      countEl.textContent = String(count);
+      popup.classList.remove('hidden', 'animating');
+      void popup.offsetWidth;
+      popup.classList.add('animating');
+      setTimeout(() => {
+        popup.classList.add('hidden');
+        popup.classList.remove('animating');
+        resolve();
+      }, 1500);
+    });
+  }
+
   async _resolvePlayerCombat(playerIdx) {
     const player = this.combat.players[playerIdx];
     const cls = this.selectedClasses[playerIdx];
     const indicator = document.getElementById('turn-indicator');
+
+    indicator.classList.add('hidden');
+    await this._showRoundScorePopup(player.roundScore || 0);
 
     const damageHits = getDamageHitsForResolve(player);
     const totalDamage = damageHits.reduce((s, h) => s + h.amount, 0);

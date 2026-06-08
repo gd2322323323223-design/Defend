@@ -345,8 +345,9 @@ export class Scene3D {
     const enemy = this.models.enemy;
     if (!enemy || amount <= 0) return;
 
+    this.vfx.spawnBossChargeAura(enemy, 0x66bb6a, 900);
     this.vfx.showDamageNumber(enemy, `+${Math.round(amount)}`, '#81c784', 0);
-    await delay(500);
+    await delay(900);
   }
 
   /** 逐次攻擊 Boss，每次顯示獨立傷害數字 */
@@ -386,23 +387,75 @@ export class Scene3D {
     }
   }
 
-  /** Boss 反擊隊伍 — 一次顯示總傷害 */
+  async _tweenModelY(model, targetY, duration) {
+    const startY = model.position.y;
+    const start = performance.now();
+    return new Promise((resolve) => {
+      const tick = () => {
+        const t = Math.min((performance.now() - start) / duration, 1);
+        const ease = t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2;
+        model.position.y = startY + (targetY - startY) * ease;
+        if (t < 1) requestAnimationFrame(tick);
+        else resolve();
+      };
+      tick();
+    });
+  }
+
+  async _finishBossHit(teamTarget, totalDamage, phaseType) {
+    this.vfx.spawnBossHit(teamTarget, phaseType);
+    const dmgColor = phaseType === 'ultimate' ? '#ff6e40'
+      : phaseType === 'lifesteal' ? '#ab47bc' : '#ef5350';
+    this.vfx.showDamageNumber(teamTarget, `-${Math.round(totalDamage)}`, dmgColor, 0);
+    this._shakeModel(teamTarget);
+    this.heroIds.forEach((id) => this._playAnimation(id, 'hit', { loop: false }));
+  }
+
+  /** Boss 反擊隊伍 — 依招式類型不同動作與節奏 */
   async playBossAttackTeam(totalDamage, phaseType = 'normal') {
     if (totalDamage <= 0) return;
     const enemy = this.models.enemy;
     const teamTarget = this.getFrontHeroModel() || this.models[this.heroIds[0]];
     if (!enemy || !teamTarget) return;
 
-    const action = phaseType === 'ultimate' ? 'cast' : 'attack';
-    this._playAnimation('enemy', action, { loop: false });
-    await delay(phaseType === 'ultimate' ? 350 : 200);
-    this.vfx.spawnBossProjectile(enemy, teamTarget, phaseType);
-    await delay(phaseType === 'ultimate' ? 280 : 180);
-    this.vfx.spawnBossHit(teamTarget, phaseType);
-    this.vfx.showDamageNumber(teamTarget, `-${Math.round(totalDamage)}`, '#ef5350', 0);
-    this._shakeModel(teamTarget);
-    this.heroIds.forEach((id) => this._playAnimation(id, 'hit', { loop: false }));
-    await delay(300);
+    if (phaseType === 'ultimate') {
+      const baseY = enemy.position.y;
+      this.vfx.spawnGroundGlow(enemy, 0xff6b35, 1500);
+      this.vfx.spawnBossChargeAura(enemy, 0xffab40, 1400);
+      this._playAnimation('enemy', 'cast', { loop: false });
+      await delay(1200);
+      await this._tweenModelY(enemy, baseY + 1.0, 480);
+      await delay(320);
+      this.vfx.spawnBossProjectile(enemy, teamTarget, 'ultimate');
+      await delay(380);
+      await this._tweenModelY(enemy, baseY, 420);
+      await delay(580);
+      await this._finishBossHit(teamTarget, totalDamage, 'ultimate');
+      await delay(750);
+      return;
+    }
+
+    if (phaseType === 'lifesteal') {
+      this.vfx.spawnBossChargeAura(enemy, 0x9c27b0, 1000);
+      this._playAnimation('enemy', 'run', { loop: false });
+      await delay(750);
+      this._playAnimation('enemy', 'attack', { loop: false });
+      this.vfx.spawnDrainBeam(enemy, teamTarget);
+      await delay(950);
+      this.vfx.spawnBossProjectile(enemy, teamTarget, 'lifesteal');
+      await delay(520);
+      await this._finishBossHit(teamTarget, totalDamage, 'lifesteal');
+      this.vfx.spawnLifestealParticles(teamTarget);
+      await delay(800);
+      return;
+    }
+
+    this._playAnimation('enemy', 'attack', { loop: false });
+    await delay(700);
+    this.vfx.spawnBossProjectile(enemy, teamTarget, 'normal');
+    await delay(520);
+    await this._finishBossHit(teamTarget, totalDamage, 'normal');
+    await delay(600);
   }
 
   _updateFloatingUI() {

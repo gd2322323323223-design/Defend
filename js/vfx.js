@@ -17,9 +17,9 @@ const CLASS_PROJECTILE = {
 };
 
 const BOSS_PROJECTILE = {
-  normal: { color: 0x64b5f6, glow: 0x90caf9, size: 0.14, speed: 260 },
-  ultimate: { color: 0xff3d00, glow: 0xffab40, size: 0.22, speed: 340 },
-  lifesteal: { color: 0x9c27b0, glow: 0x66bb6a, size: 0.16, speed: 300 },
+  normal: { color: 0x64b5f6, glow: 0x90caf9, size: 0.16, speed: 520 },
+  ultimate: { color: 0xff3d00, glow: 0xffab40, size: 0.26, speed: 620 },
+  lifesteal: { color: 0x9c27b0, glow: 0x66bb6a, size: 0.18, speed: 560 },
 };
 
 export class BattleVFX {
@@ -204,6 +204,188 @@ export class BattleVFX {
 
   spawnShieldFlash(model) {
     this.spawnStylizedHit(model, 'shield');
+  }
+
+  /** Boss 蓄力 — 腳下光環 */
+  spawnGroundGlow(model, color = 0xff6b35, duration = 1400) {
+    const pos = new THREE.Vector3();
+    model.getWorldPosition(pos);
+    pos.y += 0.06;
+
+    const group = new THREE.Group();
+    group.position.copy(pos);
+    group.renderOrder = 995;
+    this.scene.add(group);
+    this._track(group, duration + 200);
+
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.25, 0.55, 32),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.85,
+        side: THREE.DoubleSide,
+        depthTest: false,
+      }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    group.add(ring);
+
+    const outer = new THREE.Mesh(
+      new THREE.RingGeometry(0.5, 1.1, 32),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.45,
+        side: THREE.DoubleSide,
+        depthTest: false,
+      }),
+    );
+    outer.rotation.x = -Math.PI / 2;
+    group.add(outer);
+
+    const start = performance.now();
+    const tick = () => {
+      const t = Math.min((performance.now() - start) / duration, 1);
+      const pulse = 1 + Math.sin(t * Math.PI * 6) * 0.12;
+      ring.scale.setScalar(0.8 + t * 1.6 * pulse);
+      outer.scale.setScalar(0.6 + t * 2.2 * pulse);
+      ring.material.opacity = 0.85 * (1 - t * 0.35);
+      outer.material.opacity = 0.45 * (1 - t * 0.5);
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  /** Boss 蓄力 — 身上光暈 */
+  spawnBossChargeAura(model, color = 0xffab40, duration = 1200) {
+    const pos = new THREE.Vector3();
+    model.getWorldPosition(pos);
+    pos.y += 0.9;
+
+    const glow = new THREE.Mesh(
+      new THREE.SphereGeometry(0.55, 14, 14),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.5,
+        depthTest: false,
+      }),
+    );
+    glow.position.copy(pos);
+    glow.renderOrder = 994;
+    this.scene.add(glow);
+    this._track(glow, duration + 200);
+
+    const start = performance.now();
+    const tick = () => {
+      const t = Math.min((performance.now() - start) / duration, 1);
+      const s = 1 + t * 1.8;
+      glow.scale.setScalar(s);
+      glow.material.opacity = 0.5 * (1 - t);
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  /** 吸血撕咬 — 能量汲取光束 */
+  spawnDrainBeam(fromModel, toModel, color = 0x9c27b0, duration = 1100) {
+    const from = new THREE.Vector3();
+    const to = new THREE.Vector3();
+    fromModel.getWorldPosition(from);
+    toModel.getWorldPosition(to);
+    from.y += 1.3;
+    to.y += 1.2;
+
+    const dist = from.distanceTo(to);
+    const dir = to.clone().sub(from).normalize();
+    const mid = from.clone().add(to).multiplyScalar(0.5);
+    const up = new THREE.Vector3(0, 1, 0);
+
+    const group = new THREE.Group();
+    group.renderOrder = 997;
+    this.scene.add(group);
+    this._track(group, duration + 300);
+
+    for (let i = 0; i < 3; i++) {
+      const beam = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04 + i * 0.02, 0.06 + i * 0.02, dist, 8),
+        new THREE.MeshBasicMaterial({
+          color: i === 1 ? 0x66bb6a : color,
+          transparent: true,
+          opacity: 0.75 - i * 0.15,
+          depthTest: false,
+        }),
+      );
+      beam.position.copy(mid);
+      beam.quaternion.setFromUnitVectors(up, dir);
+      group.add(beam);
+    }
+
+    const orb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.12, 10, 10),
+      new THREE.MeshBasicMaterial({
+        color: 0x66bb6a,
+        transparent: true,
+        opacity: 0.9,
+        depthTest: false,
+      }),
+    );
+    group.add(orb);
+
+    const start = performance.now();
+    const tick = () => {
+      const t = Math.min((performance.now() - start) / duration, 1);
+      orb.position.lerpVectors(from, to, t);
+      group.children.forEach((child) => {
+        if (child.material) child.material.opacity *= 0.992;
+      });
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  /** 吸血 — 目標身上散開的紫綠粒子 */
+  spawnLifestealParticles(model, duration = 900) {
+    const pos = new THREE.Vector3();
+    model.getWorldPosition(pos);
+    pos.y += 1.1;
+
+    const group = new THREE.Group();
+    group.position.copy(pos);
+    group.renderOrder = 996;
+    this.scene.add(group);
+    this._track(group, duration + 200);
+
+    for (let i = 0; i < 10; i++) {
+      const p = new THREE.Mesh(
+        new THREE.SphereGeometry(0.06, 6, 6),
+        new THREE.MeshBasicMaterial({
+          color: i % 2 ? 0x9c27b0 : 0x66bb6a,
+          transparent: true,
+          opacity: 0.85,
+          depthTest: false,
+        }),
+      );
+      const angle = (i / 10) * Math.PI * 2;
+      p.userData.vel = new THREE.Vector3(
+        Math.cos(angle) * 0.02,
+        0.03 + Math.random() * 0.02,
+        Math.sin(angle) * 0.02,
+      );
+      group.add(p);
+    }
+
+    const start = performance.now();
+    const tick = () => {
+      const t = Math.min((performance.now() - start) / duration, 1);
+      group.children.forEach((p) => {
+        p.position.add(p.userData.vel);
+        p.material.opacity = 0.85 * (1 - t);
+      });
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    tick();
   }
 
   clear() {
