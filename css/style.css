@@ -49,35 +49,59 @@ body.platform-windows #app {
   height: calc(100% / 0.88);
 }
 
-/* Boss 頭頂名稱 */
-.boss-name-floating {
+/* Boss 頭頂名稱 + 血條堆疊（血條在名稱後方/下方） */
+.boss-head-stack {
   position: fixed;
-  z-index: 26;
+  z-index: 25;
   pointer-events: none;
   transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.boss-head-stack .boss-hp-floating {
+  position: static;
+  transform: none;
+  z-index: 1;
+}
+
+.boss-head-stack .boss-name-floating {
+  position: static;
+  transform: none;
+  z-index: 2;
   font-weight: 800;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   color: #ff8a80;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
   white-space: nowrap;
 }
 
-/* Boss 與英雄之間的血條 */
-.boss-hp-floating {
-  position: fixed;
-  z-index: 25;
-  pointer-events: none;
-  transform: translate(-50%, -50%);
-  min-width: 120px;
+.boss-head-stack .boss-floating-bar {
+  width: 88px;
+  max-width: none;
+  height: 11px;
+  margin-top: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
 }
 
-.boss-hp-floating .boss-floating-bar {
-  width: 160px;
-  max-width: none;
-  height: 16px;
-  margin-top: 0;
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+.boss-head-stack .hp-text {
+  font-size: 0.58rem;
+}
+
+/* 保留單獨選擇器相容 */
+.boss-name-floating {
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #ff8a80;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+}
+
+.boss-hp-floating {
+  pointer-events: none;
 }
 
 /* 隊伍生命 — 畫面頂部置中 */
@@ -111,15 +135,15 @@ body.platform-windows #app {
   margin-top: 0;
 }
 
-/* 英雄頭頂職業標籤 */
+/* 英雄頭頂職業標籤（貼近角色） */
 .hero-float-label {
   position: fixed;
   z-index: 23;
   pointer-events: none;
   transform: translate(-50%, -100%);
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 0.8rem;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 0.72rem;
   font-weight: 800;
   background: rgba(15, 20, 40, 0.85);
   border: 1px solid rgba(255, 213, 79, 0.5);
@@ -128,7 +152,7 @@ body.platform-windows #app {
 }
 
 .boss-hp-floating .hp-text {
-  font-size: 0.65rem;
+  font-size: 0.58rem;
 }
 
 /* 叫陣倒數 */
@@ -491,12 +515,14 @@ html, body {
   color: var(--accent-magic);
 }
 
-/* 下半部 — 玩家 1（黃）/ 玩家 2（青）分屏 */
+/* 下半部 — 玩家分屏（緊湊、底部留白） */
 .players-row {
-  flex: 1;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: row;
-  min-height: 0;
+  max-height: min(38vh, 300px);
+  padding: 0 10px max(14px, env(safe-area-inset-bottom, 0px));
+  gap: 0;
   pointer-events: auto;
 }
 
@@ -504,11 +530,13 @@ html, body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 10px;
+  align-items: center;
+  padding: 6px 10px 4px;
   border: 3px solid transparent;
   transition: border-color 0.3s, box-shadow 0.3s;
   min-width: 0;
   overflow: hidden;
+  max-height: 100%;
 }
 
 .player-zone-p1 {
@@ -574,54 +602,52 @@ html, body {
   position: relative;
 }
 
-.zone-header {
+.zone-class-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-weight: 700;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 4px;
+  font-weight: 800;
+  font-size: 1rem;
   flex-shrink: 0;
 }
 
-.zone-label {
-  font-size: 0.85rem;
-  opacity: 0.75;
-  margin-right: 4px;
-}
-
-.class-icon {
-  font-size: 1.5rem;
+.zone-class-title .class-icon {
+  font-size: 1.3rem;
 }
 
 .zone-score {
-  margin-left: auto;
-  font-size: 0.9rem;
+  margin-top: 4px;
+  font-size: 0.82rem;
   font-weight: 800;
   color: #c62828;
+  flex-shrink: 0;
 }
 
-/* 3x3 字詞矩陣 */
+/* 3x3 字詞矩陣 — 填滿方框 */
 .word-matrix {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
+  gap: 6px;
   flex: 1;
-  align-content: center;
-  max-width: 220px;
+  width: min(100%, 300px);
+  min-height: 0;
+  align-content: stretch;
   margin: 0 auto;
-  width: 100%;
 }
 
 .word-cell {
   aspect-ratio: 1;
-  max-height: 52px;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.75);
-  border: 2px solid rgba(0, 0, 0, 0.15);
-  border-radius: 6px;
-  font-size: clamp(1.45rem, 5.5vw, 2.1rem);
+  background: rgba(255, 255, 255, 0.8);
+  border: 2px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  font-size: clamp(1.55rem, 7vw, 2.35rem);
   font-weight: 800;
   color: #1a1a2e;
   cursor: pointer;
@@ -925,18 +951,13 @@ html, body {
   }
 
   .players-row {
-    min-height: 0;
-  }
-
-  .zone-header {
-    flex-wrap: wrap;
-    gap: 4px;
+    max-height: min(40vh, 280px);
+    padding-bottom: 12px;
   }
 
   .zone-score {
+    text-align: center;
     width: 100%;
-    margin-left: 0;
-    text-align: right;
   }
 
   .turn-indicator {

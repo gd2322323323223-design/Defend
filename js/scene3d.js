@@ -44,7 +44,7 @@ export class Scene3D {
   }
 
   _toggleFloatingUI(visible) {
-    ['boss-name-floating', 'boss-hp-floating', 'team-hp-floating'].forEach((id) => {
+    ['boss-head-stack', 'team-hp-floating'].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.classList.toggle('hidden', !visible);
     });
@@ -405,30 +405,14 @@ export class Scene3D {
     if (!this.showBossHp) return;
 
     const enemy = this.models.enemy;
-    const frontHero = this.getFrontHeroModel();
 
     if (enemy) {
-      const namePos = new THREE.Vector3();
-      enemy.getWorldPosition(namePos);
-      namePos.y += 2.1;
+      const headPos = new THREE.Vector3();
+      enemy.getWorldPosition(headPos);
+      headPos.y += 1.72;
       this._placeFloatingEl(
-        document.getElementById('boss-name-floating'),
-        this._projectToScreen(namePos),
-      );
-
-      const midPos = new THREE.Vector3();
-      enemy.getWorldPosition(midPos);
-      if (frontHero) {
-        const heroPos = new THREE.Vector3();
-        frontHero.getWorldPosition(heroPos);
-        midPos.lerp(heroPos, 0.5);
-      } else {
-        midPos.x -= 1.5;
-      }
-      midPos.y += 1.5;
-      this._placeFloatingEl(
-        document.getElementById('boss-hp-floating'),
-        this._projectToScreen(midPos),
+        document.getElementById('boss-head-stack'),
+        this._projectToScreen(headPos),
       );
     }
 
@@ -439,7 +423,7 @@ export class Scene3D {
       el.textContent = label;
       const headPos = new THREE.Vector3();
       model.getWorldPosition(headPos);
-      headPos.y += 2.0;
+      headPos.y += 1.42;
       this._placeFloatingEl(el, this._projectToScreen(headPos));
     });
 

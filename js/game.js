@@ -144,7 +144,7 @@ export class Game {
       this.selectedClasses.map((cls, i) => ({
         classId: cls.id,
         playerIndex: i,
-        label: `${cls.icon} ${cls.name}`,
+        label: cls.name,
       })),
     );
 
@@ -236,8 +236,7 @@ export class Game {
 
     const indicator = document.getElementById('turn-indicator');
     indicator.classList.remove('hidden');
-    const playerLabel = this.mode === 'dual' ? `玩家 ${playerIdx + 1} — ` : '';
-    indicator.textContent = `第 ${this.combat.round} 回合 — ${playerLabel}${this._getPhaseLabel(cls)}階段 — ${cls.icon} ${cls.name}！限時 ${ROUND_DURATION} 秒`;
+    indicator.textContent = `第 ${this.combat.round} 回合 — ${this._getPhaseLabel(cls)}階段 — ${cls.icon} ${cls.name}！限時 ${ROUND_DURATION} 秒`;
 
     const container = document.getElementById(`matrix-p${playerIdx + 1}`);
     const matrix = new WordMatrix(container, {
@@ -482,7 +481,7 @@ export class Game {
 
     const isBattle = id === 'screen-battle';
     document.getElementById('app').classList.toggle('battle-active', isBattle);
-    const bossHp = document.getElementById('boss-hp-floating');
+    const bossHp = document.getElementById('boss-head-stack');
     const teamHp = document.getElementById('team-hp-floating');
     if (bossHp && !isBattle) bossHp.classList.add('hidden');
     if (teamHp) teamHp.classList.toggle('hidden', !isBattle);

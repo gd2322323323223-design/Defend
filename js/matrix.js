@@ -1,5 +1,5 @@
 /**
- * 字詞矩陣模組 — 3x3 動態補位演算法
+ * 字詞矩陣模組 — 3x3，每次答對全盤刷新，固定 3 個火字
  */
 
 const FIRE_RADICAL_CHARS = [
@@ -17,9 +17,9 @@ const NON_FIRE_CHARS = [
 ];
 
 export const MATRIX_SIZE = 3;
-export const MAX_FIRE_CELLS = 4;
-const REFILL_NON_FIRE_RATE = 0.7;
+export const FIRE_CELL_COUNT = 3;
 const COOLDOWN_MS = 500;
+const REFRESH_MS = 220;
 
 export class WordMatrix {
   constructor(container, options = {}) {
@@ -61,18 +61,34 @@ export class WordMatrix {
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
-  _countFireCells() {
-    return this.cells.filter((cell) => this._hasRadical(cell.dataset.word)).length;
+  _generateBoard() {
+    const total = MATRIX_SIZE * MATRIX_SIZE;
+    const board = [];
+
+    for (let i = 0; i < FIRE_CELL_COUNT; i++) {
+      board.push(this._randomChar(true));
+    }
+    for (let i = FIRE_CELL_COUNT; i < total; i++) {
+      board.push(this._randomChar(false));
+    }
+
+    for (let i = board.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [board[i], board[j]] = [board[j], board[i]];
+    }
+    return board;
   }
 
-  /** 補位：70% 非火字；若已達火字上限則必為非火字 */
-  _refillChar() {
-    const fireCount = this._countFireCells();
-    if (fireCount >= MAX_FIRE_CELLS) {
-      return this._randomChar(false);
-    }
-    const useNonFire = Math.random() < REFILL_NON_FIRE_RATE;
-    return this._randomChar(!useNonFire);
+  _applyBoard(board) {
+    this.cells.forEach((cell, i) => {
+      cell.classList.remove('correct', 'shake', 'cooldown');
+      cell.dataset.word = board[i];
+      cell.textContent = board[i];
+    });
+  }
+
+  _refreshBoard() {
+    this._applyBoard(this._generateBoard());
   }
 
   _handleCorrect(cell) {
@@ -80,11 +96,8 @@ export class WordMatrix {
     this.onCorrect(cell.dataset.word);
 
     setTimeout(() => {
-      const newChar = this._refillChar();
-      cell.dataset.word = newChar;
-      cell.textContent = newChar;
-      cell.classList.remove('correct');
-    }, 400);
+      this._refreshBoard();
+    }, REFRESH_MS);
   }
 
   _handleWrong(cell) {
@@ -103,24 +116,6 @@ export class WordMatrix {
       });
       this.cooldown = false;
     }, COOLDOWN_MS);
-  }
-
-  _generateBoard() {
-    const total = MATRIX_SIZE * MATRIX_SIZE;
-    const board = [];
-
-    for (let i = 0; i < MAX_FIRE_CELLS; i++) {
-      board.push(this._randomChar(true));
-    }
-    for (let i = MAX_FIRE_CELLS; i < total; i++) {
-      board.push(this._randomChar(false));
-    }
-
-    for (let i = board.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [board[i], board[j]] = [board[j], board[i]];
-    }
-    return board;
   }
 
   render() {
