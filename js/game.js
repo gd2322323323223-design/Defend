@@ -88,17 +88,18 @@ export class Game {
       this.selectedClasses.length < maxPlayers;
   }
 
-  /** 行動順序：攻擊角色 → 防禦角色 */
+  /** 行動順序：攻擊角色 → 防禦角色（跳過已死亡玩家） */
   _getTurnOrder() {
     const withIdx = this.selectedClasses.map((cls, i) => ({ cls, i }));
+    const alive = (i) => this.combat.isPlayerAlive(i);
     const attackers = withIdx
-      .filter(({ cls }) => cls.role === 'dps' || cls.role === 'hybrid')
+      .filter(({ cls, i }) => alive(i) && (cls.role === 'dps' || cls.role === 'hybrid'))
       .map(({ i }) => i);
     const defenders = withIdx
-      .filter(({ cls }) => cls.role === 'tank')
+      .filter(({ cls, i }) => alive(i) && cls.role === 'tank')
       .map(({ i }) => i);
     const order = [...attackers, ...defenders];
-    return order.length ? order : [0];
+    return order.length ? order : withIdx.filter(({ i }) => alive(i)).map(({ i }) => i);
   }
 
   _getPhaseLabel(cls) {
@@ -129,17 +130,31 @@ export class Game {
     }
     this.scene3d.layoutBattleFormation(this.selectedClasses.map((c) => c.id));
 
+    this.combat.round = 1;
     this.turnOrder = this._getTurnOrder();
     this.currentTurnStep = 0;
 
     this._setupBattleUI();
     this._showScreen('screen-battle');
+    this._beginRoundInput();
+  }
 
+  _beginRoundInput() {
     if (this.mode === 'dual-split') {
       this._startSplitScreen();
     } else {
       this._startMicroRound();
     }
+  }
+
+  _resetRoundUI() {
+    this.selectedClasses.forEach((cls, i) => {
+      const scoreEl = document.getElementById(`p${i + 1}-score`);
+      if (!scoreEl) return;
+      if (cls.role === 'tank') scoreEl.textContent = '護盾: 0';
+      else if (cls.role === 'dps') scoreEl.textContent = '傷害: 0';
+      else scoreEl.textContent = '護盾: 0 / 傷害: 0';
+    });
   }
 
   _setupBattleUI() {
@@ -174,6 +189,10 @@ export class Game {
   _startMicroRound() {
     this._cleanupMatrices();
     const playerIdx = this.turnOrder[this.currentTurnStep];
+    if (playerIdx === undefined || !this.combat.isPlayerAlive(playerIdx)) {
+      this._endMicroRound();
+      return;
+    }
     const cls = this.selectedClasses[playerIdx];
 
     document.getElementById('player1-zone').classList.toggle('hidden', playerIdx !== 0);
@@ -212,11 +231,20 @@ export class Game {
   _startSplitScreen() {
     this._cleanupMatrices();
 
-    document.getElementById('player1-zone').classList.remove('hidden');
-    document.getElementById('player2-zone').classList.remove('hidden');
-    document.querySelectorAll('.player-zone').forEach((z) => z.classList.add('active-zone'));
+    const aliveIndices = this.selectedClasses
+      .map((_, i) => i)
+      .filter((i) => this.combat.isPlayerAlive(i));
 
-    this.selectedClasses.forEach((cls, i) => {
+    document.getElementById('player1-zone').classList.toggle('hidden', !aliveIndices.includes(0));
+    document.getElementById('player2-zone').classList.toggle('hidden', !aliveIndices.includes(1));
+    document.querySelectorAll('.player-zone').forEach((z) => z.classList.remove('active-zone'));
+
+    aliveIndices.forEach((i) => {
+      const cls = this.selectedClasses[i];
+      const zone = document.getElementById(`player${i + 1}-zone`);
+      zone.classList.remove('hidden');
+      zone.classList.add('active-zone');
+
       document.getElementById(`p${i + 1}-class-icon`).textContent = cls.icon;
       document.getElementById(`p${i + 1}-class-name`).textContent = cls.name;
 
@@ -352,26 +380,33 @@ export class Game {
       await delay(900);
     }
 
-    indicator.classList.add('hidden');
+    if (this.combat.victory) {
+      await delay(400);
+      this._showVictory();
+      return;
+    }
 
-    const result = {
-      damageDealt: computed.damageDealt,
-      damageBlocked: computed.blocked,
-      enemyAttack: computed.enemyAttack,
-      enemyHp: this.combat.enemyHp,
-      victory: this.combat.victory,
-      defeat: this.combat.defeat,
-    };
+    if (this.combat.defeat || this.combat.players.every((p) => p.hp <= 0)) {
+      await delay(400);
+      this._showDefeat();
+      return;
+    }
 
-    setTimeout(() => {
-      if (result.victory) {
-        this._showVictory();
-      } else if (result.defeat) {
-        this._showDefeat();
-      } else if (this.combat.enemyHp > 0) {
-        this._showRoundResult(result);
-      }
-    }, 400);
+    // 雙方仍存活 → 自動進入下一回合
+    this.combat.startNewRound();
+    this.turnOrder = this._getTurnOrder();
+    this.currentTurnStep = 0;
+    this._resetRoundUI();
+
+    if (this.turnOrder.length === 0) {
+      this._showDefeat();
+      return;
+    }
+
+    indicator.textContent = `第 ${this.combat.round} 回合，繼續迎戰！`;
+    await delay(1400);
+
+    this._beginRoundInput();
   }
 
   _updateHpBar() {
@@ -392,15 +427,19 @@ export class Game {
   }
 
   async _showVictory() {
+    document.getElementById('turn-indicator').classList.add('hidden');
     this.scene3d.playEnemyDeath();
     const heroClass = this.selectedClasses.find((c) => c.role === 'dps') || this.selectedClasses[0];
     await this.scene3d.unlockEquipment(heroClass.id);
 
     document.getElementById('equipment-unlock').classList.remove('hidden');
+    const totalDmg = this.combat.battleTotalDamage + this.combat.totalDamage;
+    const totalShield = this.combat.battleTotalShield + this.combat.totalShield;
     document.getElementById('result-title').textContent = '🎉 勝利！魔王已被擊敗！';
     document.getElementById('result-stats').innerHTML = `
-      <p>總護盾: ${this.combat.totalShield}</p>
-      <p>總傷害: ${this.combat.totalDamage}</p>
+      <p>經過 ${this.combat.round} 回合</p>
+      <p>累計護盾: ${totalShield}</p>
+      <p>累計傷害: ${totalDmg}</p>
       <p>答對字數: ${this.combat.players.map((p) => p.correctCount).join(' / ')}</p>
     `;
     this._showScreen('screen-result');
@@ -408,23 +447,12 @@ export class Game {
 
   _showDefeat() {
     document.getElementById('equipment-unlock').classList.add('hidden');
+    const totalDmg = this.combat.battleTotalDamage + this.combat.totalDamage;
     document.getElementById('result-title').textContent = '💀 戰敗…';
     document.getElementById('result-stats').innerHTML = `
-      <p>魔王太強了！隊伍全滅！</p>
-      <p>造成傷害: ${this.combat.totalDamage}</p>
-    `;
-    this._showScreen('screen-result');
-  }
-
-  _showRoundResult(result) {
-    document.getElementById('equipment-unlock').classList.add('hidden');
-    document.getElementById('result-title').textContent = '回合結算';
-    document.getElementById('result-stats').innerHTML = `
-      <p>造成傷害: ${result.damageDealt}</p>
-      <p>抵擋攻擊: ${result.damageBlocked}</p>
-      <p>敵方剩餘 HP: ${result.enemyHp}</p>
-      <p>玩家 HP: ${this.combat.players.map((p) => p.hp).join(' / ')}</p>
-      <p style="color:#ef5350; margin-top:12px;">魔王還沒死！再戰一局！</p>
+      <p>經過 ${this.combat.round} 回合後隊伍全滅</p>
+      <p>累計造成傷害: ${totalDmg}</p>
+      <p>魔王剩餘 HP: ${this.combat.enemyHp}</p>
     `;
     this._showScreen('screen-result');
   }

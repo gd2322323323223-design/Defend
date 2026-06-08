@@ -19,8 +19,32 @@ export class CombatState {
     this.round = 0;
     this.totalShield = 0;
     this.totalDamage = 0;
+    this.battleTotalDamage = 0;
+    this.battleTotalShield = 0;
     this.victory = false;
     this.defeat = false;
+  }
+
+  /** 結束一回合後重置當回合數值，保留 HP，進入下一回合 */
+  startNewRound() {
+    this.battleTotalDamage += this.totalDamage;
+    this.battleTotalShield += this.totalShield;
+    this.round++;
+    this.totalShield = 0;
+    this.totalDamage = 0;
+    this.players.forEach((p) => {
+      p.shield = 0;
+      p.damage = 0;
+    });
+  }
+
+  isPlayerAlive(index) {
+    const p = this.players[index];
+    return p && p.hp > 0;
+  }
+
+  isBattleOver() {
+    return this.victory || this.defeat || this.players.every((p) => p.hp <= 0);
   }
 
   addPlayer(classConfig) {
@@ -77,7 +101,12 @@ export class CombatState {
   applyPlayerDamage(amount) {
     if (amount <= 0 || this.players.length === 0) return null;
 
-    const target = this.players.find((p) => p.class.role === 'tank') || this.players[0];
+    const alive = this.players.filter((p) => p.hp > 0);
+    const target = alive.find((p) => p.class.role === 'tank') || alive[0];
+    if (!target) {
+      this.defeat = true;
+      return null;
+    }
     target.hp = Math.max(0, target.hp - amount);
     if (this.players.every((p) => p.hp <= 0)) this.defeat = true;
     return target;
