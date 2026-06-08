@@ -8,6 +8,7 @@
 </head>
 <body>
   <div id="app">
+    <div id="game-shell">
     <!-- 3D 場景背景 -->
     <canvas id="scene-canvas"></canvas>
 
@@ -17,8 +18,7 @@
       <p class="subtitle">AI 狂妄叫陣 ➔ 語文技能 ➔ 3D 動畫結算 ➔ 斬殺敵方</p>
       <div class="mode-buttons">
         <button class="btn btn-primary" data-mode="single">單人模式</button>
-        <button class="btn btn-primary" data-mode="dual-sequential">雙人模式（輪流）</button>
-        <button class="btn btn-accent" data-mode="dual-split">雙人分屏（同時）</button>
+        <button class="btn btn-accent" data-mode="dual">雙人模式</button>
       </div>
     </section>
 
@@ -92,6 +92,7 @@
       </div>
       <button id="btn-replay" class="btn btn-primary">再戰一局</button>
     </section>
+    </div>
   </div>
 
   <script type="importmap">

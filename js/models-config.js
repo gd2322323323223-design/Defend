@@ -14,10 +14,10 @@ const BACK_CLASSES = new Set(['mage', 'assassin']);
 
 /** 戰鬥站位：玩家在左、Boss 在右；前後排（前排靠近 Boss） */
 export const BATTLE_FORMATION = {
-  enemy: { x: 3.2, y: 0.08, z: 0, rotY: -Math.PI / 2 },
-  front: { x: -2.5, y: 0.08, z: 0.2, rotY: Math.PI / 2 },
-  back: { x: -3.6, y: 0.08, z: -0.4, rotY: Math.PI / 2 },
-  solo: { x: -2.8, y: 0.08, z: 0, rotY: Math.PI / 2 },
+  enemy: { x: 3.2, y: 0.08, z: 0, rotY: -Math.PI / 2, scale: 1.05 },
+  front: { x: -1.9, y: 0.08, z: 1.1, rotY: Math.PI / 2, scale: 1 },
+  back: { x: -4.3, y: 0.08, z: -1.5, rotY: Math.PI / 2, scale: 0.95 },
+  solo: { x: -2.8, y: 0.08, z: 0, rotY: Math.PI / 2, scale: 1 },
 };
 
 /**

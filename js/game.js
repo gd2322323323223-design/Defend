@@ -52,7 +52,7 @@ export class Game {
     const grid = document.getElementById('class-grid');
     grid.innerHTML = '';
 
-    const maxPlayers = this.mode === 'single' ? 1 : 2;
+    const maxPlayers = this.mode === 'dual' ? 2 : 1;
     const hint = document.createElement('p');
     hint.style.cssText = 'grid-column: 1/-1; text-align:center; color:#9fa8da; margin-bottom:8px;';
     hint.textContent = maxPlayers === 1
@@ -75,7 +75,7 @@ export class Game {
   }
 
   _toggleClass(cls, card) {
-    const maxPlayers = this.mode === 'single' ? 1 : 2;
+    const maxPlayers = this.mode === 'dual' ? 2 : 1;
     const idx = this.selectedClasses.findIndex((c) => c.id === cls.id);
 
     if (idx >= 0) {
@@ -143,11 +143,7 @@ export class Game {
   }
 
   _beginRoundInput() {
-    if (this.mode === 'dual-split') {
-      this._startSplitScreen();
-    } else {
-      this._startMicroRound();
-    }
+    this._startTurn();
   }
 
   _resetRoundUI() {
@@ -164,7 +160,7 @@ export class Game {
     const row = document.getElementById('players-row');
     row.className = 'players-row';
     if (this.mode === 'single') row.classList.add('solo');
-    else if (this.mode === 'dual-sequential') row.classList.add('sequential');
+    else if (this.mode === 'dual') row.classList.add('dual');
 
     const statusEl = document.getElementById('player-status');
     statusEl.innerHTML = `
@@ -177,33 +173,67 @@ export class Game {
       </div>
     `;
 
+    if (this.mode === 'dual') {
+      document.getElementById('player1-zone').classList.remove('hidden');
+      document.getElementById('player2-zone').classList.remove('hidden');
+      this.selectedClasses.forEach((cls, i) => {
+        document.getElementById(`p${i + 1}-class-icon`).textContent = cls.icon;
+        document.getElementById(`p${i + 1}-class-name`).textContent = cls.name;
+      });
+    }
+
     this._updateHpBar();
     this._updateTeamHp();
   }
 
-  _startMicroRound() {
+  _updateZoneStates(activePlayerIdx) {
+    const isDual = this.mode === 'dual';
+
+    if (isDual) {
+      document.getElementById('player1-zone').classList.remove('hidden');
+      document.getElementById('player2-zone').classList.remove('hidden');
+      [0, 1].forEach((i) => {
+        const zone = document.getElementById(`player${i + 1}-zone`);
+        const matrixEl = document.getElementById(`matrix-p${i + 1}`);
+        zone.classList.toggle('active-zone', i === activePlayerIdx);
+        zone.classList.toggle('inactive-zone', i !== activePlayerIdx);
+        if (i !== activePlayerIdx) matrixEl.innerHTML = '';
+      });
+    } else {
+      document.getElementById('player1-zone').classList.remove('hidden');
+      document.getElementById('player2-zone').classList.add('hidden');
+      document.getElementById('player1-zone').classList.add('active-zone');
+      document.getElementById('player1-zone').classList.remove('inactive-zone');
+    }
+  }
+
+  _startTurn() {
     this._cleanupMatrices();
     const playerIdx = this.turnOrder[this.currentTurnStep];
     if (playerIdx === undefined) {
-      this._endMicroRound();
+      this._endTurn();
       return;
     }
     const cls = this.selectedClasses[playerIdx];
 
-    document.getElementById('player1-zone').classList.toggle('hidden', playerIdx !== 0);
-    document.getElementById('player2-zone').classList.toggle('hidden', playerIdx !== 1 || this.mode === 'single');
-
-    document.querySelectorAll('.player-zone').forEach((z) => z.classList.remove('active-zone'));
-    const activeZone = document.getElementById(`player${playerIdx + 1}-zone`);
-    activeZone.classList.remove('hidden');
-    activeZone.classList.add('active-zone');
+    this._updateZoneStates(playerIdx);
 
     document.getElementById(`p${playerIdx + 1}-class-icon`).textContent = cls.icon;
     document.getElementById(`p${playerIdx + 1}-class-name`).textContent = cls.name;
 
+    if (this.mode === 'dual') {
+      const otherIdx = playerIdx === 0 ? 1 : 0;
+      if (this.selectedClasses[otherIdx]) {
+        const otherCls = this.selectedClasses[otherIdx];
+        document.getElementById(`p${otherIdx + 1}-class-icon`).textContent = otherCls.icon;
+        document.getElementById(`p${otherIdx + 1}-class-name`).textContent = otherCls.name;
+      }
+    }
+
     const indicator = document.getElementById('turn-indicator');
     indicator.classList.remove('hidden');
-    indicator.textContent = `第 ${this.combat.round} 回合 — ${this._getPhaseLabel(cls)}階段 — ${cls.icon} ${cls.name}！限時 ${ROUND_DURATION} 秒`;
+    const playerLabel = this.mode === 'dual' ? `玩家 ${playerIdx + 1} — ` : '';
+    indicator.textContent = `第 ${this.combat.round} 回合 — ${playerLabel}${this._getPhaseLabel(cls)}階段 — ${cls.icon} ${cls.name}！限時 ${ROUND_DURATION} 秒`;
 
     const container = document.getElementById(`matrix-p${playerIdx + 1}`);
     const matrix = new WordMatrix(container, {
@@ -220,40 +250,7 @@ export class Game {
       this.scene3d.playHeroAction(cls.id, cls.id === 'assassin' ? 'attack' : 'cast');
     }
 
-    this._startTimer(() => this._endMicroRound());
-  }
-
-  _startSplitScreen() {
-    this._cleanupMatrices();
-
-    this.selectedClasses.forEach((cls, i) => {
-      const zone = document.getElementById(`player${i + 1}-zone`);
-      zone.classList.remove('hidden');
-      zone.classList.add('active-zone');
-
-      document.getElementById(`p${i + 1}-class-icon`).textContent = cls.icon;
-      document.getElementById(`p${i + 1}-class-name`).textContent = cls.name;
-
-      const container = document.getElementById(`matrix-p${i + 1}`);
-      const matrix = new WordMatrix(container, {
-        radical: '火',
-        onCorrect: () => this._onCorrect(i, cls),
-        onWrong: () => this._onWrong(i, cls),
-      });
-      matrix.render();
-      this.matrices.push(matrix);
-
-      this.scene3d.playHeroAction(
-        cls.id,
-        cls.role === 'tank' ? 'block' : (cls.id === 'assassin' ? 'attack' : 'cast'),
-      );
-    });
-
-    document.getElementById('turn-indicator').classList.remove('hidden');
-    document.getElementById('turn-indicator').textContent =
-      `第 ${this.combat.round} 回合 — 攻擊 + 防禦同時作答！限時 10 秒`;
-
-    this._startTimer(() => this._endSplitRound());
+    this._startTimer(() => this._endTurn());
   }
 
   _onCorrect(playerIdx, cls) {
@@ -300,18 +297,13 @@ export class Game {
     }, 1000);
   }
 
-  _endMicroRound() {
+  _endTurn() {
     this._cleanupMatrices();
     this.currentTurnStep++;
     if (this.currentTurnStep < this.turnOrder.length) {
-      setTimeout(() => this._startMicroRound(), 500);
+      setTimeout(() => this._startTurn(), 500);
       return;
     }
-    this._resolveCombat();
-  }
-
-  _endSplitRound() {
-    this._cleanupMatrices();
     this._resolveCombat();
   }
 

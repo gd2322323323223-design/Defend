@@ -36,6 +36,16 @@ html, body {
   position: relative;
   width: 100%;
   height: 100%;
+  display: flex;
+  justify-content: center;
+  background: var(--bg-dark);
+}
+
+#game-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: 1280px;
 }
 
 #scene-canvas {
@@ -50,8 +60,10 @@ html, body {
 /* 戰鬥中：上半部 Boss 3D 場景 */
 #app.battle-active #scene-canvas {
   top: 0;
-  left: 0;
+  left: 50%;
+  transform: translateX(-50%);
   width: 100%;
+  max-width: 1280px;
   height: 50%;
 }
 
@@ -91,9 +103,11 @@ html, body {
 
 .mode-buttons {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 16px;
-  width: min(320px, 90vw);
+  width: min(480px, 90vw);
 }
 
 .btn {
@@ -393,23 +407,54 @@ html, body {
 
 .player-zone.active-zone {
   border-color: #ff6b35;
-  box-shadow: inset 0 0 24px rgba(255, 107, 53, 0.35);
+  box-shadow: inset 0 0 28px rgba(255, 107, 53, 0.5), 0 0 16px rgba(255, 213, 79, 0.35);
+  animation: zone-glow 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes zone-glow {
+  from { box-shadow: inset 0 0 20px rgba(255, 107, 53, 0.4), 0 0 10px rgba(255, 213, 79, 0.25); }
+  to { box-shadow: inset 0 0 32px rgba(255, 107, 53, 0.6), 0 0 20px rgba(255, 213, 79, 0.45); }
+}
+
+.player-zone.inactive-zone {
+  filter: grayscale(0.75) brightness(0.75);
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.player-zone.inactive-zone .word-matrix::after {
+  content: '等待回合…';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
 }
 
 .player-zone.hidden {
   display: none;
 }
 
-/* 單人 / 輪流模式：只顯示當前玩家，佔滿下半部 */
-.players-row.solo .player-zone-p2,
-.players-row.sequential .player-zone:not(.active-zone) {
+/* 單人模式：只顯示玩家 1 */
+.players-row.solo .player-zone-p2 {
   display: none;
 }
 
-.players-row.solo .player-zone-p1,
-.players-row.sequential .player-zone.active-zone {
+.players-row.solo .player-zone-p1 {
   flex: 1;
   border-right: none;
+}
+
+.players-row.dual .player-zone {
+  position: relative;
+}
+
+.player-zone .word-matrix {
+  position: relative;
 }
 
 .zone-header {
@@ -545,3 +590,69 @@ html, body {
   display: none !important;
 }
 
+/* 電腦寬螢幕 */
+@media (min-width: 1024px) {
+  .mode-buttons {
+    width: auto;
+    gap: 24px;
+  }
+
+  .mode-buttons .btn {
+    min-width: 200px;
+    padding: 16px 36px;
+    font-size: 1.2rem;
+  }
+
+  .class-grid {
+    width: min(640px, 80vw);
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .boss-zone {
+    min-height: 340px;
+  }
+
+  .players-row {
+    min-height: 300px;
+  }
+
+  .battle-header {
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .boss-hud {
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(100%, 900px);
+  }
+
+  .hp-bar-container {
+    max-width: 420px;
+  }
+
+  .word-cell {
+    font-size: clamp(1.3rem, 1.8vw, 2rem);
+  }
+
+  .turn-indicator {
+    font-size: 1.15rem;
+    padding: 12px 32px;
+  }
+
+  #app.battle-active #scene-canvas {
+    height: min(50vh, 480px);
+  }
+}
+
+@media (min-width: 1440px) {
+  #game-shell {
+    max-width: 1400px;
+  }
+
+  #app.battle-active #scene-canvas {
+    max-width: 1400px;
+    height: min(52vh, 520px);
+  }
+}

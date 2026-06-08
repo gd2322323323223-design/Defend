@@ -169,10 +169,10 @@ export class Scene3D {
   _placeEnemy() {
     const m = this.models.enemy;
     if (!m) return;
-    const { x, y, z, rotY } = BATTLE_FORMATION.enemy;
+    const { x, y, z, rotY, scale } = BATTLE_FORMATION.enemy;
     m.position.set(x, y, z);
     m.rotation.y = rotY;
-    m.scale.setScalar(1.05);
+    m.scale.setScalar(scale ?? 1);
   }
 
   _placeHero(classId, slotKey) {
@@ -181,7 +181,7 @@ export class Scene3D {
     if (!m) return;
     m.position.set(slot.x, slot.y, slot.z);
     m.rotation.y = slot.rotY;
-    m.scale.setScalar(1);
+    m.scale.setScalar(slot.scale ?? 1);
   }
 
   layoutBattleFormation(formationSlots) {
