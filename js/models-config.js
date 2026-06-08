@@ -12,12 +12,14 @@ const ANIM_SKELETON = `${CHAR_BASE}/Skeletons/Animations/gltf/Rig_Medium`;
 const FRONT_CLASSES = new Set(['knight', 'warrior']);
 const BACK_CLASSES = new Set(['mage', 'assassin']);
 
-/** 戰鬥站位：玩家在左、Boss 在右；前後排（前排靠近 Boss） */
+/** 戰鬥站位：玩家在左、Boss 在右；雙人錯開避免遮擋 */
 export const BATTLE_FORMATION = {
-  enemy: { x: 3.2, y: 0.08, z: 0, rotY: -Math.PI / 2, scale: 1.05 },
-  front: { x: -2.5, y: 0.08, z: 1.5, rotY: Math.PI / 2, scale: 1 },
-  back: { x: -5.6, y: 0.08, z: -2.2, rotY: Math.PI / 2, scale: 0.95 },
-  solo: { x: -3.2, y: 0.08, z: 0, rotY: Math.PI / 2, scale: 1 },
+  enemy: { x: 2.8, y: 0.08, z: 0, rotY: -Math.PI / 2, scale: 0.82 },
+  player1: { x: -1.6, y: 0.08, z: 1.4, rotY: Math.PI / 2, scale: 0.62 },
+  player2: { x: -4.2, y: 0.08, z: -0.6, rotY: Math.PI / 2, scale: 0.58 },
+  front: { x: -1.6, y: 0.08, z: 1.4, rotY: Math.PI / 2, scale: 0.62 },
+  back: { x: -4.2, y: 0.08, z: -0.6, rotY: Math.PI / 2, scale: 0.58 },
+  solo: { x: -2.4, y: 0.08, z: 0.4, rotY: Math.PI / 2, scale: 0.65 },
 };
 
 /**
@@ -28,24 +30,10 @@ export function assignFormationSlots(classes) {
   if (classes.length === 1) {
     return [{ index: 0, slot: 'solo' }];
   }
-
-  const [a, b] = classes.map((cls, index) => ({ cls, index }));
-  const aFront = FRONT_CLASSES.has(a.cls.id);
-  const aBack = BACK_CLASSES.has(a.cls.id);
-  const bFront = FRONT_CLASSES.has(b.cls.id);
-  const bBack = BACK_CLASSES.has(b.cls.id);
-
-  if (aFront && bBack) {
-    return [{ index: a.index, slot: 'front' }, { index: b.index, slot: 'back' }];
-  }
-  if (aBack && bFront) {
-    return [{ index: b.index, slot: 'front' }, { index: a.index, slot: 'back' }];
-  }
-
-  if (Math.random() < 0.5) {
-    return [{ index: a.index, slot: 'front' }, { index: b.index, slot: 'back' }];
-  }
-  return [{ index: b.index, slot: 'front' }, { index: a.index, slot: 'back' }];
+  return [
+    { index: 0, slot: 'player1' },
+    { index: 1, slot: 'player2' },
+  ];
 }
 
 export const ANIMATION_FILES = {

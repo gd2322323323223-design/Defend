@@ -47,6 +47,15 @@ function sumHits(hits, key) {
   return hits.reduce((s, h) => s + (h[key] || 0), 0);
 }
 
+function sumPlayerHits(player) {
+  return {
+    damage: sumHits(player.damageHits || [], 'amount'),
+    shield: sumHits(player.shieldHits || [], 'amount'),
+  };
+}
+
+export { sumPlayerHits };
+
 /**
  * 戰鬥結算 — 僅計算，不修改 HP（由 game.js 逐次套用）
  */
@@ -109,13 +118,49 @@ export function computeBattleResult(combat, bossRound) {
   };
 }
 
-/** 結算完成後寫入狀態 */
-export function applyBattleResult(combat, result) {
+/** Boss 階段結算（玩家攻擊已在各自回合完成） */
+export function computeBossPhase(combat, bossRound) {
+  const totalShield = combat.players.reduce(
+    (s, p) => s + sumHits(p.shieldHits || [], 'amount'),
+    0,
+  );
+
+  let nextBossDebuff = false;
+  for (const p of combat.players) {
+    if (p.class?.id === 'mage' && (p.roundScore || 0) >= MAGE_DEBUFF_THRESHOLD
+      && Math.random() < MAGE_DEBUFF_RATE) {
+      nextBossDebuff = true;
+      break;
+    }
+  }
+
+  const roundInfo = getBossRoundInfo(bossRound);
+  let bossRawDamage = roundInfo.rawDamage;
+  const bossDebuffApplied = combat.bossIsDebuffed;
+
+  if (bossDebuffApplied) bossRawDamage *= 0.5;
+
+  let finalDamageToHero = Math.max(0, bossRawDamage - totalShield);
+  finalDamageToHero = Math.round(finalDamageToHero);
+
+  let bossHeal = 0;
+  if (roundInfo.sucking) bossHeal = finalDamageToHero;
+
+  return {
+    shieldGenerated: totalShield,
+    damageReceived: finalDamageToHero,
+    bossHeal,
+    debuffTriggered: nextBossDebuff,
+    bossDebuffApplied,
+    bossRound: roundInfo,
+    bossFinalDamage: bossRawDamage,
+    blocked: Math.max(0, bossRawDamage - finalDamageToHero),
+  };
+}
+
+export function applyBossPhaseResult(combat, result) {
   if (result.bossDebuffApplied) combat.bossIsDebuffed = false;
   if (result.debuffTriggered) combat.bossIsDebuffed = true;
-
-  combat.battleTotalDamage += result.damageDealt;
-  combat.battleTotalShield += result.shieldGenerated;
 }
 
 export class CombatState {

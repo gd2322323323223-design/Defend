@@ -27,16 +27,31 @@ export class Scene3D {
     this.heroIds = [];
     this.isBattleLayout = false;
     this.showBossHp = false;
+    this.heroLabelData = [];
     this._init();
   }
 
   setBattleLayout(isBattle) {
     this.isBattleLayout = isBattle;
     this.showBossHp = isBattle;
-    const hpEl = document.getElementById('boss-hp-floating');
-    if (hpEl && !isBattle) hpEl.classList.add('hidden');
+    this._toggleFloatingUI(isBattle);
     if (isBattle) this._applyBattleCamera();
     this._onResize();
+  }
+
+  setHeroLabels(labels) {
+    this.heroLabelData = labels;
+  }
+
+  _toggleFloatingUI(visible) {
+    ['boss-name-floating', 'boss-hp-floating', 'team-hp-floating'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('hidden', !visible);
+    });
+    [0, 1].forEach((i) => {
+      const el = document.getElementById(`hero-label-${i}`);
+      if (el) el.classList.toggle('hidden', !visible);
+    });
   }
 
   _init() {
@@ -96,8 +111,8 @@ export class Scene3D {
   }
 
   _applyBattleCamera() {
-    this.camera.position.set(0, 1.6, 5.5);
-    this.camera.lookAt(0, 1.1, 0);
+    this.camera.position.set(0, 1.75, 6.0);
+    this.camera.lookAt(0, 0.95, 0);
   }
 
   async _fetchGLTF(path) {
@@ -197,10 +212,31 @@ export class Scene3D {
   }
 
   getFrontHeroModel() {
-    const frontId = Object.entries(this.heroSlots).find(([, s]) => s === 'front')?.[0]
-      || Object.entries(this.heroSlots).find(([, s]) => s === 'solo')?.[0]
+    const frontId = Object.entries(this.heroSlots).find(([, s]) =>
+      s === 'front' || s === 'player1' || s === 'solo')?.[0]
       || this.heroIds[0];
     return frontId ? this.models[frontId] : null;
+  }
+
+  _projectToScreen(worldPos) {
+    const pos = worldPos.clone();
+    pos.project(this.camera);
+    if (pos.z > 1) return null;
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: rect.left + (pos.x * 0.5 + 0.5) * rect.width,
+      y: rect.top + (-pos.y * 0.5 + 0.5) * rect.height,
+    };
+  }
+
+  _placeFloatingEl(el, screenPos) {
+    if (!el || !screenPos) {
+      if (el) el.classList.add('hidden');
+      return;
+    }
+    el.classList.remove('hidden');
+    el.style.left = `${screenPos.x}px`;
+    el.style.top = `${screenPos.y}px`;
   }
 
   async _loadModel(path, key, animType) {
@@ -365,28 +401,53 @@ export class Scene3D {
     await delay(300);
   }
 
-  _updateBossHpPosition() {
-    const el = document.getElementById('boss-hp-floating');
+  _updateFloatingUI() {
+    if (!this.showBossHp) return;
+
     const enemy = this.models.enemy;
-    if (!el || !enemy || !this.showBossHp) return;
+    const frontHero = this.getFrontHeroModel();
 
-    el.classList.remove('hidden');
-    const pos = new THREE.Vector3();
-    enemy.getWorldPosition(pos);
-    pos.y += 2.35;
-    pos.project(this.camera);
+    if (enemy) {
+      const namePos = new THREE.Vector3();
+      enemy.getWorldPosition(namePos);
+      namePos.y += 2.1;
+      this._placeFloatingEl(
+        document.getElementById('boss-name-floating'),
+        this._projectToScreen(namePos),
+      );
 
-    if (pos.z > 1) {
-      el.classList.add('hidden');
-      return;
+      const midPos = new THREE.Vector3();
+      enemy.getWorldPosition(midPos);
+      if (frontHero) {
+        const heroPos = new THREE.Vector3();
+        frontHero.getWorldPosition(heroPos);
+        midPos.lerp(heroPos, 0.5);
+      } else {
+        midPos.x -= 1.5;
+      }
+      midPos.y += 1.5;
+      this._placeFloatingEl(
+        document.getElementById('boss-hp-floating'),
+        this._projectToScreen(midPos),
+      );
     }
 
-    const rect = this.canvas.getBoundingClientRect();
-    const x = rect.left + (pos.x * 0.5 + 0.5) * rect.width;
-    const y = rect.top + (-pos.y * 0.5 + 0.5) * rect.height;
+    this.heroLabelData.forEach(({ classId, label, playerIndex }) => {
+      const model = this.models[classId];
+      const el = document.getElementById(`hero-label-${playerIndex}`);
+      if (!model || !el) return;
+      el.textContent = label;
+      const headPos = new THREE.Vector3();
+      model.getWorldPosition(headPos);
+      headPos.y += 2.0;
+      this._placeFloatingEl(el, this._projectToScreen(headPos));
+    });
 
-    el.style.left = `${x}px`;
-    el.style.top = `${y}px`;
+    [0, 1].forEach((i) => {
+      const hasLabel = this.heroLabelData.some((h) => h.playerIndex === i);
+      const el = document.getElementById(`hero-label-${i}`);
+      if (el && !hasLabel) el.classList.add('hidden');
+    });
   }
 
   playEnemyDeath() {
@@ -444,7 +505,7 @@ export class Scene3D {
     requestAnimationFrame(() => this._animate());
     const delta = this.clock.getDelta();
     Object.values(this.animations).forEach(({ mixer }) => mixer.update(delta));
-    if (this.showBossHp) this._updateBossHpPosition();
+    if (this.showBossHp) this._updateFloatingUI();
     this.renderer.render(this.scene, this.camera);
   }
 }

@@ -5,12 +5,13 @@
 import { WordMatrix } from './matrix.js';
 import { CLASSES, ENEMY, getRandomTaunt } from './ai-taunt.js';
 import {
-  computeBattleResult,
-  applyBattleResult,
+  computeBossPhase,
+  applyBossPhaseResult,
   CombatState,
   getBossRoundInfo,
   ROUND_DURATION,
   TEAM_MAX_HP,
+  sumPlayerHits,
 } from './combat.js';
 import { assignFormationSlots } from './models-config.js';
 import { Scene3D } from './scene3d.js';
@@ -28,6 +29,7 @@ export class Game {
     this.currentTurnStep = 0;
     this.formationSlots = [];
     this.scene3d = null;
+    this._resolving = false;
     this._bindUI();
   }
 
@@ -97,15 +99,8 @@ export class Game {
   }
 
   _getTurnOrder() {
-    const withIdx = this.selectedClasses.map((cls, i) => ({ cls, i }));
-    const attackers = withIdx
-      .filter(({ cls }) => cls.role === 'dps' || cls.role === 'hybrid')
-      .map(({ i }) => i);
-    const defenders = withIdx
-      .filter(({ cls }) => cls.role === 'tank')
-      .map(({ i }) => i);
-    const order = [...attackers, ...defenders];
-    return order.length ? order : [0];
+    if (this.mode === 'dual') return [0, 1];
+    return [0];
   }
 
   _getPhaseLabel(cls) {
@@ -145,6 +140,13 @@ export class Game {
       }),
     );
     this.scene3d.layoutBattleFormation(this.formationSlots);
+    this.scene3d.setHeroLabels(
+      this.selectedClasses.map((cls, i) => ({
+        classId: cls.id,
+        playerIndex: i,
+        label: `${cls.icon} ${cls.name}`,
+      })),
+    );
 
     this.combat.round = 1;
     this.turnOrder = this._getTurnOrder();
@@ -172,16 +174,8 @@ export class Game {
     if (this.mode === 'single') row.classList.add('solo');
     else if (this.mode === 'dual') row.classList.add('dual');
 
-    const statusEl = document.getElementById('player-status');
-    statusEl.innerHTML = `
-      <div class="player-hp-chip team-hp-chip" id="team-hp-chip">
-        <span>❤️ 隊伍生命</span>
-        <div class="hp-bar-container small">
-          <div class="hp-bar player-hp-fill" id="team-hp-bar"></div>
-          <span class="hp-text" id="team-hp-text">${TEAM_MAX_HP} / ${TEAM_MAX_HP}</span>
-        </div>
-      </div>
-    `;
+    const teamHp = document.getElementById('team-hp-floating');
+    if (teamHp) teamHp.classList.remove('hidden');
 
     if (this.mode === 'dual') {
       document.getElementById('player1-zone').classList.remove('hidden');
@@ -302,16 +296,61 @@ export class Game {
   }
 
   _endTurn() {
+    if (this._resolving) return;
     this._cleanupMatrices();
+    this._resolving = true;
+    this._finishPlayerTurn().finally(() => {
+      this._resolving = false;
+    });
+  }
+
+  async _finishPlayerTurn() {
+    const playerIdx = this.turnOrder[this.currentTurnStep];
+    if (playerIdx !== undefined) {
+      await this._resolvePlayerCombat(playerIdx);
+      if (this.combat.victory) {
+        await delay(300);
+        this._showVictory();
+        return;
+      }
+    }
+
     this.currentTurnStep++;
     if (this.currentTurnStep < this.turnOrder.length) {
       setTimeout(() => this._startTurn(), 500);
       return;
     }
-    this._resolveCombat();
+
+    await this._resolveBossTurn();
   }
 
-  async _resolveCombat() {
+  async _resolvePlayerCombat(playerIdx) {
+    const player = this.combat.players[playerIdx];
+    const cls = this.selectedClasses[playerIdx];
+    const indicator = document.getElementById('turn-indicator');
+    const totals = sumPlayerHits(player);
+
+    if (player.damageHits.length) {
+      indicator.classList.remove('hidden');
+      indicator.textContent = `⚔️ ${cls.icon} ${cls.name} 攻擊！`;
+      await this.scene3d.playHeroAttackHits(cls.id, player.damageHits, (hit) => {
+        this.combat.enemyHp = Math.max(0, this.combat.enemyHp - hit.amount);
+        this._updateHpBar();
+        if (this.combat.enemyHp <= 0) this.combat.victory = true;
+      });
+      this.combat.battleTotalDamage += totals.damage;
+      if (this.combat.victory) return;
+    }
+
+    if (player.shieldHits.length) {
+      indicator.classList.remove('hidden');
+      indicator.textContent = `🛡️ ${cls.icon} ${cls.name} 防禦！`;
+      await this.scene3d.playHeroShieldHits(cls.id, player.shieldHits);
+      this.combat.battleTotalShield += totals.shield;
+    }
+  }
+
+  async _resolveBossTurn() {
     const indicator = document.getElementById('turn-indicator');
     indicator.classList.remove('hidden');
 
@@ -321,32 +360,8 @@ export class Game {
     indicator.textContent = bossHint;
     await delay(700);
 
-    const result = computeBattleResult(this.combat, this.combat.round);
+    const result = computeBossPhase(this.combat, this.combat.round);
 
-    // 1. 攻擊 — 每次答對獨立顯示 -1
-    for (const p of result.players) {
-      if (!p.damageHits.length) continue;
-      const cls = this.selectedClasses[p.index];
-      indicator.textContent = `⚔️ ${cls.icon} ${cls.name} 攻擊！`;
-      await this.scene3d.playHeroAttackHits(cls.id, p.damageHits, (hit) => {
-        this.combat.enemyHp = Math.max(0, this.combat.enemyHp - hit.amount);
-        this._updateHpBar();
-        if (this.combat.enemyHp <= 0) this.combat.victory = true;
-      });
-      if (this.combat.victory) break;
-    }
-
-    // 2. 防禦 — 每次答對獨立顯示 +1 盾
-    if (!this.combat.victory) {
-      for (const p of result.players) {
-        if (!p.shieldHits.length) continue;
-        const cls = this.selectedClasses[p.index];
-        indicator.textContent = `🛡️ ${cls.icon} ${cls.name} 防禦！`;
-        await this.scene3d.playHeroShieldHits(cls.id, p.shieldHits);
-      }
-    }
-
-    // 3. Boss 反擊 — 逐次顯示 -1
     if (!this.combat.victory) {
       if (result.damageReceived > 0) {
         indicator.textContent = `👹 Boss ${result.bossRound.label}！`;
@@ -367,7 +382,7 @@ export class Game {
       }
     }
 
-    applyBattleResult(this.combat, result);
+    applyBossPhaseResult(this.combat, result);
 
     if (result.debuffTriggered) {
       indicator.textContent = '🔮 法師弱化 Boss！下回合傷害減半';
@@ -468,7 +483,9 @@ export class Game {
     const isBattle = id === 'screen-battle';
     document.getElementById('app').classList.toggle('battle-active', isBattle);
     const bossHp = document.getElementById('boss-hp-floating');
+    const teamHp = document.getElementById('team-hp-floating');
     if (bossHp && !isBattle) bossHp.classList.add('hidden');
+    if (teamHp) teamHp.classList.toggle('hidden', !isBattle);
     if (this.scene3d) {
       this.scene3d.setBattleLayout(isBattle);
     }

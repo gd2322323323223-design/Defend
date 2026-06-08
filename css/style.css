@@ -49,26 +49,86 @@ body.platform-windows #app {
   height: calc(100% / 0.88);
 }
 
-/* Boss 頭頂浮動血條 */
+/* Boss 頭頂名稱 */
+.boss-name-floating {
+  position: fixed;
+  z-index: 26;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #ff8a80;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+}
+
+/* Boss 與英雄之間的血條 */
 .boss-hp-floating {
   position: fixed;
   z-index: 25;
   pointer-events: none;
-  transform: translate(-50%, -100%);
+  transform: translate(-50%, -50%);
   min-width: 120px;
 }
 
 .boss-hp-floating .boss-floating-bar {
-  width: 140px;
+  width: 160px;
   max-width: none;
-  height: 18px;
+  height: 16px;
   margin-top: 0;
   border: 2px solid rgba(255, 255, 255, 0.25);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
 }
 
+/* 隊伍生命 — 畫面頂部置中 */
+.team-hp-floating {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: rgba(15, 20, 40, 0.88);
+  border-radius: 20px;
+  border: 1px solid rgba(102, 187, 106, 0.4);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.team-hp-floating .team-hp-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.team-hp-floating .team-floating-bar {
+  width: 130px;
+  max-width: none;
+  height: 14px;
+  margin-top: 0;
+}
+
+/* 英雄頭頂職業標籤 */
+.hero-float-label {
+  position: fixed;
+  z-index: 23;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  background: rgba(15, 20, 40, 0.85);
+  border: 1px solid rgba(255, 213, 79, 0.5);
+  color: var(--accent-gold);
+  white-space: nowrap;
+}
+
 .boss-hp-floating .hp-text {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
 }
 
 /* 叫陣倒數 */
@@ -312,13 +372,11 @@ html, body {
 .battle-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   width: 100%;
-  padding: 8px 16px;
-  background: rgba(15, 20, 40, 0.85);
-  border-radius: var(--radius);
-  margin-bottom: 6px;
-  backdrop-filter: blur(6px);
+  padding: 4px 12px;
+  background: transparent;
+  margin-bottom: 0;
 }
 
 .enemy-info {
@@ -546,21 +604,25 @@ html, body {
 .word-matrix {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  gap: 4px;
   flex: 1;
   align-content: center;
+  max-width: 220px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .word-cell {
   aspect-ratio: 1;
+  max-height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.75);
   border: 2px solid rgba(0, 0, 0, 0.15);
-  border-radius: 8px;
-  font-size: clamp(1.2rem, 4vw, 1.8rem);
-  font-weight: 700;
+  border-radius: 6px;
+  font-size: clamp(1.45rem, 5.5vw, 2.1rem);
+  font-weight: 800;
   color: #1a1a2e;
   cursor: pointer;
   user-select: none;
