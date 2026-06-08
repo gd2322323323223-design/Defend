@@ -327,6 +327,10 @@ html, body {
   backdrop-filter: blur(4px);
 }
 
+.team-hp-chip .hp-bar-container.small {
+  width: 120px;
+}
+
 .hp-bar-container.small {
   width: 80px;
   height: 14px;

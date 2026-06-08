@@ -4,7 +4,8 @@
 
 import { WordMatrix } from './matrix.js';
 import { CLASSES, ENEMY, getRandomTaunt } from './ai-taunt.js';
-import { CombatState, ROUND_DURATION, PLAYER_MAX_HP } from './combat.js';
+import { CombatState, ROUND_DURATION, TEAM_MAX_HP } from './combat.js';
+import { assignFormationSlots } from './models-config.js';
 import { Scene3D } from './scene3d.js';
 import { delay } from './vfx.js';
 
@@ -18,6 +19,7 @@ export class Game {
     this.timeLeft = ROUND_DURATION;
     this.turnOrder = [];
     this.currentTurnStep = 0;
+    this.formationSlots = [];
     this.scene3d = null;
     this._bindUI();
   }
@@ -88,18 +90,16 @@ export class Game {
       this.selectedClasses.length < maxPlayers;
   }
 
-  /** 行動順序：攻擊角色 → 防禦角色（跳過已死亡玩家） */
   _getTurnOrder() {
     const withIdx = this.selectedClasses.map((cls, i) => ({ cls, i }));
-    const alive = (i) => this.combat.isPlayerAlive(i);
     const attackers = withIdx
-      .filter(({ cls, i }) => alive(i) && (cls.role === 'dps' || cls.role === 'hybrid'))
+      .filter(({ cls }) => cls.role === 'dps' || cls.role === 'hybrid')
       .map(({ i }) => i);
     const defenders = withIdx
-      .filter(({ cls, i }) => alive(i) && cls.role === 'tank')
+      .filter(({ cls }) => cls.role === 'tank')
       .map(({ i }) => i);
     const order = [...attackers, ...defenders];
-    return order.length ? order : withIdx.filter(({ i }) => alive(i)).map(({ i }) => i);
+    return order.length ? order : [0];
   }
 
   _getPhaseLabel(cls) {
@@ -111,7 +111,6 @@ export class Game {
   async _startTaunt() {
     document.getElementById('taunt-text').textContent = getRandomTaunt();
     this._showScreen('screen-taunt');
-
     this.scene3d.clearScene();
     await this.scene3d.loadEnemy(ENEMY.modelPath);
   }
@@ -120,15 +119,19 @@ export class Game {
     this.combat.reset();
     this.selectedClasses.forEach((cls) => this.combat.addPlayer(cls));
 
-    for (let i = 0; i < this.selectedClasses.length; i++) {
-      await this.scene3d.loadHero(
-        this.selectedClasses[i].id,
-        this.selectedClasses[i].modelPath,
-        i,
-        this.selectedClasses[i].defaultEquipment,
-      );
-    }
-    this.scene3d.layoutBattleFormation(this.selectedClasses.map((c) => c.id));
+    const formation = assignFormationSlots(this.selectedClasses);
+    this.formationSlots = formation.map(({ index, slot }) => ({
+      classId: this.selectedClasses[index].id,
+      slot,
+    }));
+
+    await Promise.all(
+      formation.map(({ index, slot }) => {
+        const cls = this.selectedClasses[index];
+        return this.scene3d.loadHero(cls.id, cls.modelPath, slot, cls.defaultEquipment);
+      }),
+    );
+    this.scene3d.layoutBattleFormation(this.formationSlots);
 
     this.combat.round = 1;
     this.turnOrder = this._getTurnOrder();
@@ -160,36 +163,28 @@ export class Game {
   _setupBattleUI() {
     const row = document.getElementById('players-row');
     row.className = 'players-row';
-    if (this.mode === 'single') {
-      row.classList.add('solo');
-    } else if (this.mode === 'dual-sequential') {
-      row.classList.add('sequential');
-    }
+    if (this.mode === 'single') row.classList.add('solo');
+    else if (this.mode === 'dual-sequential') row.classList.add('sequential');
 
     const statusEl = document.getElementById('player-status');
-    statusEl.innerHTML = '';
-    this.selectedClasses.forEach((cls, i) => {
-      const chip = document.createElement('div');
-      chip.className = 'player-hp-chip';
-      chip.id = `player-hp-${i}`;
-      chip.innerHTML = `
-        <span>${cls.icon} ${cls.name}</span>
+    statusEl.innerHTML = `
+      <div class="player-hp-chip team-hp-chip" id="team-hp-chip">
+        <span>❤️ 隊伍生命</span>
         <div class="hp-bar-container small">
-          <div class="hp-bar player-hp-fill"></div>
-          <span class="hp-text">${PLAYER_MAX_HP} / ${PLAYER_MAX_HP}</span>
+          <div class="hp-bar player-hp-fill" id="team-hp-bar"></div>
+          <span class="hp-text" id="team-hp-text">${TEAM_MAX_HP} / ${TEAM_MAX_HP}</span>
         </div>
-      `;
-      statusEl.appendChild(chip);
-    });
+      </div>
+    `;
 
     this._updateHpBar();
-    this._updatePlayerHp();
+    this._updateTeamHp();
   }
 
   _startMicroRound() {
     this._cleanupMatrices();
     const playerIdx = this.turnOrder[this.currentTurnStep];
-    if (playerIdx === undefined || !this.combat.isPlayerAlive(playerIdx)) {
+    if (playerIdx === undefined) {
       this._endMicroRound();
       return;
     }
@@ -208,7 +203,7 @@ export class Game {
 
     const indicator = document.getElementById('turn-indicator');
     indicator.classList.remove('hidden');
-    indicator.textContent = `${this._getPhaseLabel(cls)}階段 — ${cls.icon} ${cls.name}！限時 ${ROUND_DURATION} 秒`;
+    indicator.textContent = `第 ${this.combat.round} 回合 — ${this._getPhaseLabel(cls)}階段 — ${cls.icon} ${cls.name}！限時 ${ROUND_DURATION} 秒`;
 
     const container = document.getElementById(`matrix-p${playerIdx + 1}`);
     const matrix = new WordMatrix(container, {
@@ -231,16 +226,7 @@ export class Game {
   _startSplitScreen() {
     this._cleanupMatrices();
 
-    const aliveIndices = this.selectedClasses
-      .map((_, i) => i)
-      .filter((i) => this.combat.isPlayerAlive(i));
-
-    document.getElementById('player1-zone').classList.toggle('hidden', !aliveIndices.includes(0));
-    document.getElementById('player2-zone').classList.toggle('hidden', !aliveIndices.includes(1));
-    document.querySelectorAll('.player-zone').forEach((z) => z.classList.remove('active-zone'));
-
-    aliveIndices.forEach((i) => {
-      const cls = this.selectedClasses[i];
+    this.selectedClasses.forEach((cls, i) => {
       const zone = document.getElementById(`player${i + 1}-zone`);
       zone.classList.remove('hidden');
       zone.classList.add('active-zone');
@@ -264,7 +250,8 @@ export class Game {
     });
 
     document.getElementById('turn-indicator').classList.remove('hidden');
-    document.getElementById('turn-indicator').textContent = '攻擊 + 防禦同時作答！限時 10 秒';
+    document.getElementById('turn-indicator').textContent =
+      `第 ${this.combat.round} 回合 — 攻擊 + 防禦同時作答！限時 10 秒`;
 
     this._startTimer(() => this._endSplitRound());
   }
@@ -315,13 +302,11 @@ export class Game {
 
   _endMicroRound() {
     this._cleanupMatrices();
-
     this.currentTurnStep++;
     if (this.currentTurnStep < this.turnOrder.length) {
-      setTimeout(() => this._startMicroRound(), 600);
+      setTimeout(() => this._startMicroRound(), 500);
       return;
     }
-
     this._resolveCombat();
   }
 
@@ -337,75 +322,64 @@ export class Game {
 
     const computed = this.combat.computeRound();
 
-    // 1. 攻擊角色 → Boss
+    // 1. 攻擊角色 → Boss（每次命中獨立顯示）
     for (const { player } of this.combat.getAttackers()) {
-      if (player.damage <= 0) continue;
+      if (!player.damageHits.length) continue;
       indicator.textContent = `⚔️ ${player.class.icon} ${player.class.name} 攻擊！`;
-      await this.scene3d.playHeroAttackBoss(player.class.id, player.damage);
-      this.combat.enemyHp = Math.max(0, this.combat.enemyHp - player.damage);
+      await this.scene3d.playHeroAttackHits(player.class.id, player.damageHits);
+      const dmg = player.damageHits.reduce((s, h) => s + h.amount, 0);
+      this.combat.enemyHp = Math.max(0, this.combat.enemyHp - dmg);
       if (this.combat.enemyHp <= 0) this.combat.victory = true;
       this._updateHpBar();
-      await delay(250);
       if (this.combat.victory) break;
     }
 
-    // 2. 防禦角色 → 護盾
+    // 2. 防禦角色 → 護盾（每次 +1 獨立顯示）
     if (!this.combat.victory) {
       for (const { player } of this.combat.getDefenders()) {
-        if (player.shield <= 0) continue;
+        if (!player.shieldHits.length) continue;
         indicator.textContent = `🛡️ ${player.class.icon} ${player.class.name} 防禦！`;
-        await this.scene3d.playHeroDefend(player.class.id, player.shield);
-        await delay(250);
+        await this.scene3d.playHeroShieldHits(player.class.id, player.shieldHits.length);
       }
 
       for (const { player } of this.combat.getAttackers()) {
-        if (player.class.role === 'hybrid' && player.shield > 0) {
+        if (player.class.role === 'hybrid' && player.shieldHits.length) {
           indicator.textContent = `🛡️ ${player.class.icon} ${player.class.name} 護盾！`;
-          await this.scene3d.playHeroDefend(player.class.id, player.shield);
-          await delay(250);
+          await this.scene3d.playHeroShieldHits(player.class.id, player.shieldHits.length);
         }
       }
     }
 
-    // 3. Boss → 玩家
+    // 3. Boss → 隊伍（一次計算，逐次顯示 -1）
     if (!this.combat.victory && computed.enemyAttack > 0) {
-      const target = this.combat.players.find((p) => p.class.role === 'tank') || this.combat.players[0];
       indicator.textContent = '👹 Boss 反擊！';
-      await this.scene3d.playBossAttackPlayer(target.class.id, computed.enemyAttack);
-      this.combat.applyPlayerDamage(computed.enemyAttack);
-      this._updatePlayerHp();
-      await delay(300);
+      this.combat.applyTeamDamage(computed.enemyAttack);
+      await this.scene3d.playBossAttackTeam(computed.enemyAttack);
+      this._updateTeamHp();
     } else if (!this.combat.victory && computed.blocked > 0) {
       indicator.textContent = `🛡️ 護盾完全抵擋 ${computed.blocked} 點傷害！`;
-      await delay(900);
+      await delay(700);
     }
 
     if (this.combat.victory) {
-      await delay(400);
+      await delay(300);
       this._showVictory();
       return;
     }
 
-    if (this.combat.defeat || this.combat.players.every((p) => p.hp <= 0)) {
-      await delay(400);
+    if (this.combat.defeat || !this.combat.isTeamAlive()) {
+      await delay(300);
       this._showDefeat();
       return;
     }
 
-    // 雙方仍存活 → 自動進入下一回合
     this.combat.startNewRound();
     this.turnOrder = this._getTurnOrder();
     this.currentTurnStep = 0;
     this._resetRoundUI();
 
-    if (this.turnOrder.length === 0) {
-      this._showDefeat();
-      return;
-    }
-
     indicator.textContent = `第 ${this.combat.round} 回合，繼續迎戰！`;
-    await delay(1400);
-
+    await delay(1000);
     this._beginRoundInput();
   }
 
@@ -416,14 +390,13 @@ export class Game {
       `${this.combat.enemyHp} / ${this.combat.enemyMaxHp}`;
   }
 
-  _updatePlayerHp() {
-    this.combat.players.forEach((p, i) => {
-      const el = document.getElementById(`player-hp-${i}`);
-      if (!el) return;
-      const pct = (p.hp / p.maxHp) * 100;
-      el.querySelector('.player-hp-fill').style.width = `${pct}%`;
-      el.querySelector('.hp-text').textContent = `${p.hp} / ${p.maxHp}`;
-    });
+  _updateTeamHp() {
+    const bar = document.getElementById('team-hp-bar');
+    const text = document.getElementById('team-hp-text');
+    if (!bar || !text) return;
+    const pct = this.combat.getTeamHpPercent();
+    bar.style.width = `${pct}%`;
+    text.textContent = `${this.combat.teamHp} / ${this.combat.teamMaxHp}`;
   }
 
   async _showVictory() {
@@ -446,6 +419,7 @@ export class Game {
   }
 
   _showDefeat() {
+    document.getElementById('turn-indicator').classList.add('hidden');
     document.getElementById('equipment-unlock').classList.add('hidden');
     const totalDmg = this.combat.battleTotalDamage + this.combat.totalDamage;
     document.getElementById('result-title').textContent = '💀 戰敗…';
@@ -463,6 +437,7 @@ export class Game {
     this.selectedClasses = [];
     this.turnOrder = [];
     this.currentTurnStep = 0;
+    this.formationSlots = [];
     this.scene3d.clearScene();
     this.scene3d.loadEnemy(ENEMY.modelPath);
     document.getElementById('equipment-unlock').classList.add('hidden');

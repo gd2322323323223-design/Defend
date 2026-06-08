@@ -56,7 +56,7 @@ export const CLASSES = {
     name: '刺客',
     icon: '🗡️',
     role: 'dps',
-    desc: '找出火部字 → 暴擊傷害 x2',
+    desc: '找出火部字 → 35% 暴擊 x2',
     modelPath: `${HEROES}/Rogue.glb`,
     defaultEquipment: 'dagger',
     animAttack: 'attack',

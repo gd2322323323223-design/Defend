@@ -1,5 +1,5 @@
 /**
- * 3D 模型與動畫資源路徑設定（對應 Characters/ 上傳目錄）
+ * 3D 模型與動畫資源路徑設定
  */
 
 const CHAR_BASE = 'Characters/Characters';
@@ -9,27 +9,59 @@ const SKELETONS = `${CHAR_BASE}/Skeletons/gltf`;
 const ANIM_HERO = `${CHAR_BASE}/Animations/gltf/Rig_Medium`;
 const ANIM_SKELETON = `${CHAR_BASE}/Skeletons/Animations/gltf/Rig_Medium`;
 
-/** 戰鬥站位：玩家在左、Boss 在右，互相對視 */
+const FRONT_CLASSES = new Set(['knight', 'warrior']);
+const BACK_CLASSES = new Set(['mage', 'assassin']);
+
+/** 戰鬥站位：玩家在左、Boss 在右；前後排（前排靠近 Boss） */
 export const BATTLE_FORMATION = {
   enemy: { x: 3.2, y: 0.08, z: 0, rotY: -Math.PI / 2 },
-  heroSlots: [
-    { x: -3.2, y: 0.08, z: -0.75, rotY: Math.PI / 2 },
-    { x: -3.2, y: 0.08, z: 0.75, rotY: Math.PI / 2 },
-  ],
+  front: { x: -2.5, y: 0.08, z: 0.2, rotY: Math.PI / 2 },
+  back: { x: -3.6, y: 0.08, z: -0.4, rotY: Math.PI / 2 },
+  solo: { x: -2.8, y: 0.08, z: 0, rotY: Math.PI / 2 },
 };
+
+/**
+ * 前排：戰士、騎士；後排：法師、刺客
+ * 同類型組合則隨機前後
+ */
+export function assignFormationSlots(classes) {
+  if (classes.length === 1) {
+    return [{ index: 0, slot: 'solo' }];
+  }
+
+  const [a, b] = classes.map((cls, index) => ({ cls, index }));
+  const aFront = FRONT_CLASSES.has(a.cls.id);
+  const aBack = BACK_CLASSES.has(a.cls.id);
+  const bFront = FRONT_CLASSES.has(b.cls.id);
+  const bBack = BACK_CLASSES.has(b.cls.id);
+
+  if (aFront && bBack) {
+    return [{ index: a.index, slot: 'front' }, { index: b.index, slot: 'back' }];
+  }
+  if (aBack && bFront) {
+    return [{ index: b.index, slot: 'front' }, { index: a.index, slot: 'back' }];
+  }
+
+  if (Math.random() < 0.5) {
+    return [{ index: a.index, slot: 'front' }, { index: b.index, slot: 'back' }];
+  }
+  return [{ index: b.index, slot: 'front' }, { index: a.index, slot: 'back' }];
+}
 
 export const ANIMATION_FILES = {
-  hero: {
-    general: `${ANIM_HERO}/Rig_Medium_General.glb`,
-    movement: `${ANIM_HERO}/Rig_Medium_MovementBasic.glb`,
-  },
-  enemy: {
-    general: `${ANIM_SKELETON}/Rig_Medium_General.glb`,
-    movement: `${ANIM_SKELETON}/Rig_Medium_MovementBasic.glb`,
-  },
+  hero: `${ANIM_HERO}/Rig_Medium_General.glb`,
+  enemy: `${ANIM_SKELETON}/Rig_Medium_General.glb`,
 };
 
-/** 動作名稱 → 動畫片段候選（KayKit Rig_Medium） */
+/** 預載常用模型路徑 */
+export const PRELOAD_MODELS = [
+  `${SKELETONS}/Skeleton_Warrior.glb`,
+  `${HEROES}/Knight.glb`,
+  `${HEROES}/Mage.glb`,
+  `${HEROES}/Rogue.glb`,
+  `${HEROES}/Barbarian.glb`,
+];
+
 export const ANIM_MAP = {
   idle: ['Idle_A', 'Idle_B'],
   block: ['Hit_A', 'Use_Item'],

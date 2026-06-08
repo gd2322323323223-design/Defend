@@ -1,21 +1,29 @@
 /**
- * Three.js 3D 場景模組
+ * Three.js 3D 場景模組（含資源快取與預載）
  */
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { SkeletonUtils } from 'three/addons/utils/SkeletonUtils.js';
 import { EquipmentManager } from './equipment.js';
 import { BattleVFX, delay } from './vfx.js';
-import { ANIMATION_FILES, ANIM_MAP, BATTLE_FORMATION } from './models-config.js';
+import {
+  ANIMATION_FILES,
+  ANIM_MAP,
+  BATTLE_FORMATION,
+  PRELOAD_MODELS,
+} from './models-config.js';
 
 export class Scene3D {
   constructor(canvas) {
     this.canvas = canvas;
     this.loader = new GLTFLoader();
     this.equipmentManager = new EquipmentManager();
+    this.gltfCache = new Map();
     this.animClips = { hero: null, enemy: null };
     this.animations = {};
     this.models = {};
+    this.heroSlots = {};
     this.heroIds = [];
     this.isBattleLayout = false;
     this._init();
@@ -23,9 +31,7 @@ export class Scene3D {
 
   setBattleLayout(isBattle) {
     this.isBattleLayout = isBattle;
-    if (isBattle) {
-      this._applyBattleCamera();
-    }
+    if (isBattle) this._applyBattleCamera();
     this._onResize();
   }
 
@@ -59,30 +65,42 @@ export class Scene3D {
     fillLight.position.set(-4, 4, 2);
     this.scene.add(fillLight);
 
-    const rimLight = new THREE.DirectionalLight(0xffaa66, 0.45);
-    rimLight.position.set(0, 3, -5);
-    this.scene.add(rimLight);
-
     const ground = new THREE.Mesh(
       new THREE.CircleGeometry(10, 48),
       new THREE.MeshStandardMaterial({ color: 0x1e2438, roughness: 0.95, metalness: 0 }),
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = 0;
     ground.receiveShadow = true;
     ground.renderOrder = 0;
-    this.ground = ground;
     this.scene.add(ground);
 
     this.vfx = new BattleVFX(this.scene);
     this.clock = new THREE.Clock();
     this._animate();
     window.addEventListener('resize', () => this._onResize());
+
+    this.preloadEssentials();
+  }
+
+  /** 背景預載動畫與常用模型 */
+  preloadEssentials() {
+    Promise.all([
+      this._loadAnimClips('hero'),
+      this._loadAnimClips('enemy'),
+      ...PRELOAD_MODELS.map((p) => this._fetchGLTF(p)),
+    ]).catch((err) => console.warn('預載資源時發生錯誤', err));
   }
 
   _applyBattleCamera() {
     this.camera.position.set(0, 1.6, 5.5);
     this.camera.lookAt(0, 1.1, 0);
+  }
+
+  async _fetchGLTF(path) {
+    if (this.gltfCache.has(path)) return this.gltfCache.get(path);
+    const gltf = await this.loader.loadAsync(path);
+    this.gltfCache.set(path, gltf);
+    return gltf;
   }
 
   _elevateModel(model) {
@@ -101,14 +119,9 @@ export class Scene3D {
 
   async _loadAnimClips(type) {
     if (this.animClips[type]) return this.animClips[type];
-
-    const files = ANIMATION_FILES[type];
     try {
-      const [general, movement] = await Promise.all([
-        this.loader.loadAsync(files.general),
-        this.loader.loadAsync(files.movement),
-      ]);
-      this.animClips[type] = [...general.animations, ...movement.animations];
+      const gltf = await this.loader.loadAsync(ANIMATION_FILES[type]);
+      this.animClips[type] = gltf.animations;
     } catch (err) {
       console.warn(`動畫載入失敗 (${type}):`, err);
       this.animClips[type] = [];
@@ -134,10 +147,11 @@ export class Scene3D {
     return model;
   }
 
-  async loadHero(classId, path, slotIndex = 0, defaultEquipment = null) {
+  async loadHero(classId, path, slotKey = 'solo', defaultEquipment = null) {
     const model = await this._loadModel(path, classId, 'hero');
     if (model) {
-      this._placeHero(classId, slotIndex);
+      this.heroSlots[classId] = slotKey;
+      this._placeHero(classId, slotKey);
       this._playAnimation(classId, 'idle', { loop: true });
       if (!this.heroIds.includes(classId)) this.heroIds.push(classId);
 
@@ -161,18 +175,28 @@ export class Scene3D {
     m.scale.setScalar(1.05);
   }
 
-  _placeHero(classId, slotIndex) {
+  _placeHero(classId, slotKey) {
     const m = this.models[classId];
-    const slot = BATTLE_FORMATION.heroSlots[slotIndex] || BATTLE_FORMATION.heroSlots[0];
-    if (!m || !slot) return;
+    const slot = BATTLE_FORMATION[slotKey] || BATTLE_FORMATION.solo;
+    if (!m) return;
     m.position.set(slot.x, slot.y, slot.z);
     m.rotation.y = slot.rotY;
     m.scale.setScalar(1);
   }
 
-  layoutBattleFormation(heroClassIds) {
+  layoutBattleFormation(formationSlots) {
     this._placeEnemy();
-    heroClassIds.forEach((id, i) => this._placeHero(id, i));
+    formationSlots.forEach(({ classId, slot }) => {
+      this.heroSlots[classId] = slot;
+      this._placeHero(classId, slot);
+    });
+  }
+
+  getFrontHeroModel() {
+    const frontId = Object.entries(this.heroSlots).find(([, s]) => s === 'front')?.[0]
+      || Object.entries(this.heroSlots).find(([, s]) => s === 'solo')?.[0]
+      || this.heroIds[0];
+    return frontId ? this.models[frontId] : null;
   }
 
   async _loadModel(path, key, animType) {
@@ -180,11 +204,11 @@ export class Scene3D {
 
     try {
       const [gltf, clips] = await Promise.all([
-        this.loader.loadAsync(path),
+        this._fetchGLTF(path),
         this._loadAnimClips(animType),
       ]);
 
-      const model = gltf.scene;
+      const model = SkeletonUtils.clone(gltf.scene);
       this._elevateModel(model);
 
       const mixer = new THREE.AnimationMixer(model);
@@ -226,25 +250,19 @@ export class Scene3D {
     if (!clip) return Promise.resolve();
 
     return new Promise((resolve) => {
-      anim.mixer.stopAllAction();
       const action = anim.mixer.clipAction(clip);
-      action.reset().fadeIn(0.15).play();
+      action.reset().fadeIn(0.1).play();
 
       if (loop) {
         action.setLoop(THREE.LoopRepeat);
-        action.clampWhenFinished = false;
         resolve();
       } else {
         action.setLoop(THREE.LoopOnce, 1);
         action.clampWhenFinished = true;
-        const onFinished = (e) => {
-          if (e.action !== action) return;
-          anim.mixer.removeEventListener('finished', onFinished);
+        setTimeout(() => {
           this._playAnimation(modelKey, 'idle', { loop: true });
           resolve();
-        };
-        anim.mixer.addEventListener('finished', onFinished);
-        setTimeout(resolve, 900);
+        }, 550);
       }
     });
   }
@@ -253,49 +271,59 @@ export class Scene3D {
     return this._playAnimation(classId, action, { loop: false });
   }
 
-  async playHeroAttackBoss(heroId, damage) {
-    if (damage <= 0) return;
+  /** 逐次攻擊 Boss，每次顯示獨立傷害數字 */
+  async playHeroAttackHits(heroId, hits) {
     const hero = this.models[heroId];
     const enemy = this.models.enemy;
-    if (!hero || !enemy) return;
+    if (!hero || !enemy || !hits.length) return;
 
-    await this._playAnimation(heroId, 'attack', { loop: false });
-    this.vfx.spawnProjectile(hero, enemy, 0xff6b35);
-    await delay(420);
-    this.vfx.spawnHitFlash(enemy, 0xff4444);
-    this.vfx.showDamageNumber(enemy, `-${damage}`, '#ff3333');
-    await this._playAnimation('enemy', 'hit', { loop: false });
-    this._shakeModel(enemy);
+    for (let i = 0; i < hits.length; i++) {
+      const hit = hits[i];
+      const action = heroId === 'mage' ? 'cast' : 'attack';
+      this._playAnimation(heroId, action, { loop: false });
+      this.vfx.spawnProjectile(hero, enemy, hit.crit ? 0xffd54f : 0xff6b35);
+      await delay(220);
+      this.vfx.spawnHitFlash(enemy, hit.crit ? 0xffd54f : 0xff4444);
+      const label = hit.crit ? `-${hit.amount} 暴擊!` : `-${hit.amount}`;
+      this.vfx.showDamageNumber(enemy, label, hit.crit ? '#ffd54f' : '#ff3333', i);
+      this._shakeModel(enemy);
+      await delay(180);
+    }
   }
 
-  async playHeroDefend(heroId, shieldGain) {
-    if (shieldGain <= 0) return;
+  /** 逐次防禦，每次 +1 盾 */
+  async playHeroShieldHits(heroId, count) {
     const hero = this.models[heroId];
-    if (!hero) return;
+    if (!hero || count <= 0) return;
 
-    await this._playAnimation(heroId, 'block', { loop: false });
-    this.vfx.spawnShieldFlash(hero);
-    this.vfx.showDamageNumber(hero, `+${shieldGain} 盾`, '#4fc3f7');
+    for (let i = 0; i < count; i++) {
+      this._playAnimation(heroId, 'block', { loop: false });
+      this.vfx.spawnShieldFlash(hero);
+      this.vfx.showDamageNumber(hero, '+1 盾', '#4fc3f7', i);
+      await delay(200);
+    }
   }
 
-  async playBossAttackPlayer(targetHeroId, damage) {
-    if (damage <= 0) return;
+  /** Boss 一次反擊，逐次顯示 -1 於隊伍位置 */
+  async playBossAttackTeam(totalDamage) {
+    if (totalDamage <= 0) return;
     const enemy = this.models.enemy;
-    const hero = this.models[targetHeroId];
-    if (!enemy || !hero) return;
+    const teamTarget = this.getFrontHeroModel() || this.models[this.heroIds[0]];
+    if (!enemy || !teamTarget) return;
 
-    await this._playAnimation('enemy', 'attack', { loop: false });
-    this.vfx.spawnProjectile(enemy, hero, 0x88ccff);
-    await delay(420);
-    this.vfx.spawnHitFlash(hero, 0xef5350);
-    this.vfx.showDamageNumber(hero, `-${damage}`, '#ef5350');
-    await this._playAnimation(targetHeroId, 'hit', { loop: false });
-    this._shakeModel(hero);
-  }
+    this._playAnimation('enemy', 'attack', { loop: false });
+    await delay(200);
 
-  playEnemyHit() {
-    this._playAnimation('enemy', 'hit', { loop: false });
-    this._shakeModel(this.models.enemy);
+    for (let i = 0; i < totalDamage; i++) {
+      this.vfx.spawnProjectile(enemy, teamTarget, 0x88ccff);
+      await delay(180);
+      this.vfx.spawnHitFlash(teamTarget, 0xef5350);
+      this.vfx.showDamageNumber(teamTarget, '-1', '#ef5350', i);
+      await delay(120);
+    }
+
+    this._shakeModel(teamTarget);
+    this.heroIds.forEach((id) => this._playAnimation(id, 'hit', { loop: false }));
   }
 
   playEnemyDeath() {
@@ -308,13 +336,13 @@ export class Scene3D {
     const oz = model.position.z;
     let frame = 0;
     const shake = () => {
-      if (frame >= 16) {
+      if (frame >= 10) {
         model.position.x = ox;
         model.position.z = oz;
         return;
       }
-      model.position.x = ox + (Math.random() - 0.5) * 0.2;
-      model.position.z = oz + (Math.random() - 0.5) * 0.1;
+      model.position.x = ox + (Math.random() - 0.5) * 0.15;
+      model.position.z = oz + (Math.random() - 0.5) * 0.08;
       frame++;
       requestAnimationFrame(shake);
     };
@@ -336,6 +364,7 @@ export class Scene3D {
     this.models = {};
     this.animations = {};
     this.heroIds = [];
+    this.heroSlots = {};
     this.equipmentManager.detachAll();
     this.vfx.clear();
   }

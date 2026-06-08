@@ -23,7 +23,7 @@ export class BattleVFX {
     }, ttl);
   }
 
-  showDamageNumber(model, text, color = '#ff3333') {
+  showDamageNumber(model, text, color = '#ff3333', stackIndex = 0) {
     const canvas = document.createElement('canvas');
     canvas.width = 160;
     canvas.height = 80;
@@ -44,8 +44,10 @@ export class BattleVFX {
 
     const pos = new THREE.Vector3();
     model.getWorldPosition(pos);
-    sprite.position.set(pos.x, pos.y + 2.2, pos.z);
-    sprite.scale.set(1.8, 0.9, 1);
+    const xOff = (stackIndex % 3 - 1) * 0.35;
+    const yOff = 2.2 + Math.floor(stackIndex / 3) * 0.45;
+    sprite.position.set(pos.x + xOff, pos.y + yOff, pos.z);
+    sprite.scale.set(1.6, 0.8, 1);
     this.scene.add(sprite);
     this._track(sprite);
 
@@ -53,9 +55,9 @@ export class BattleVFX {
     const start = performance.now();
     const tick = () => {
       const t = (performance.now() - start) / 1000;
-      if (t > 1.2) return;
-      sprite.position.y = startY + t * 1.5;
-      sprite.material.opacity = 1 - t / 1.2;
+      if (t > 1) return;
+      sprite.position.y = startY + t * 1.4;
+      sprite.material.opacity = 1 - t;
       requestAnimationFrame(tick);
     };
     tick();
@@ -69,17 +71,17 @@ export class BattleVFX {
     from.y += 1.4;
     to.y += 1.4;
 
-    const geo = new THREE.SphereGeometry(0.12, 8, 8);
+    const geo = new THREE.SphereGeometry(0.1, 6, 6);
     const mat = new THREE.MeshBasicMaterial({ color, depthTest: false });
     const ball = new THREE.Mesh(geo, mat);
     ball.renderOrder = 998;
     ball.position.copy(from);
     this.scene.add(ball);
-    this._track(ball, 800);
+    this._track(ball, 500);
 
     const start = performance.now();
     const tick = () => {
-      const t = Math.min((performance.now() - start) / 400, 1);
+      const t = Math.min((performance.now() - start) / 280, 1);
       ball.position.lerpVectors(from, to, t);
       if (t < 1) requestAnimationFrame(tick);
     };
@@ -89,7 +91,7 @@ export class BattleVFX {
   spawnHitFlash(model, color = 0xff4444) {
     const pos = new THREE.Vector3();
     model.getWorldPosition(pos);
-    const geo = new THREE.RingGeometry(0.3, 0.8, 16);
+    const geo = new THREE.RingGeometry(0.25, 0.65, 12);
     const mat = new THREE.MeshBasicMaterial({
       color,
       transparent: true,
@@ -102,13 +104,13 @@ export class BattleVFX {
     ring.position.set(pos.x, pos.y + 1.2, pos.z);
     ring.rotation.x = -Math.PI / 2;
     this.scene.add(ring);
-    this._track(ring, 500);
+    this._track(ring, 400);
 
     const start = performance.now();
     const tick = () => {
-      const t = (performance.now() - start) / 500;
+      const t = (performance.now() - start) / 400;
       if (t >= 1) return;
-      ring.scale.setScalar(1 + t * 2);
+      ring.scale.setScalar(1 + t * 1.8);
       mat.opacity = 0.85 * (1 - t);
       requestAnimationFrame(tick);
     };
