@@ -113,6 +113,7 @@ export class Game {
         this.selectedClasses[i].id,
         this.selectedClasses[i].modelPath,
         side,
+        this.selectedClasses[i].defaultEquipment,
       );
     }
 
@@ -237,8 +238,10 @@ export class Game {
       statusEl.textContent = `${cls.icon} ${cls.name}: ${player.correctCount} 字`;
     }
 
-    if (cls.role === 'dps' || cls.role === 'hybrid') {
-      this.scene3d.playHeroAction(cls.id, 'cast');
+    if (cls.role === 'dps') {
+      this.scene3d.playHeroAction(cls.id, cls.id === 'assassin' ? 'attack' : 'cast');
+    } else if (cls.role === 'hybrid') {
+      this.scene3d.playHeroAction(cls.id, 'attack');
     }
   }
 
@@ -289,7 +292,7 @@ export class Game {
   _resolveCombat() {
     const result = this.combat.resolveRound();
 
-    this.scene3d.shakeEnemy();
+    this.scene3d.playEnemyHit();
     this._updateHpBar();
 
     document.getElementById('turn-indicator').classList.add('hidden');
@@ -311,6 +314,7 @@ export class Game {
   }
 
   async _showVictory() {
+    this.scene3d.playEnemyDeath();
     const heroClass = this.selectedClasses.find((c) => c.role === 'dps') || this.selectedClasses[0];
     await this.scene3d.unlockEquipment(heroClass.id);
 

@@ -2,6 +2,10 @@
  * AI 敵方叫陣模組
  */
 
+const CHAR = 'Characters/Characters';
+const HEROES = `${CHAR}/gltf`;
+const SKELETONS = `${CHAR}/Skeletons/gltf`;
+
 const TAUNTS = [
   '愚蠢的冒險者，你們的詞彙量弱不禁風！有本事就用「火」字部的字來融化我的冰霜護盾啊！',
   '哈哈哈！你們的字彙就像紙糊的城牆！快用帶「火」的字來燒穿我的防線！',
@@ -31,7 +35,8 @@ export const CLASSES = {
     icon: '🛡️',
     role: 'tank',
     desc: '找出火部字 → 疊加護盾',
-    modelPath: 'assets/models/heroes/knight.glb',
+    modelPath: `${HEROES}/Knight.glb`,
+    defaultEquipment: 'shield_round',
     animBlock: 'block',
     animIdle: 'idle',
   },
@@ -41,7 +46,8 @@ export const CLASSES = {
     icon: '🔮',
     role: 'dps',
     desc: '找出火部字 → 造成傷害',
-    modelPath: 'assets/models/heroes/mage.glb',
+    modelPath: `${HEROES}/Mage.glb`,
+    defaultEquipment: 'staff',
     animCast: 'cast',
     animIdle: 'idle',
   },
@@ -51,7 +57,8 @@ export const CLASSES = {
     icon: '🗡️',
     role: 'dps',
     desc: '找出火部字 → 暴擊傷害 x2',
-    modelPath: 'assets/models/heroes/assassin.glb',
+    modelPath: `${HEROES}/Rogue.glb`,
+    defaultEquipment: 'dagger',
     animAttack: 'attack',
     animIdle: 'idle',
   },
@@ -61,7 +68,8 @@ export const CLASSES = {
     icon: '⚔️',
     role: 'hybrid',
     desc: '找出火部字 → 護盾+傷害',
-    modelPath: 'assets/models/heroes/warrior.glb',
+    modelPath: `${HEROES}/Barbarian.glb`,
+    defaultEquipment: 'axe_2handed',
     animAttack: 'attack',
     animIdle: 'idle',
   },
@@ -71,6 +79,6 @@ export const ENEMY = {
   name: '骷髏魔王',
   icon: '👹',
   maxHp: 20,
-  modelPath: 'assets/models/enemies/skeleton.glb',
+  modelPath: `${SKELETONS}/Skeleton_Warrior.glb`,
   attackDamage: 3,
 };
