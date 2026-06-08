@@ -4,7 +4,13 @@
 
 import { WordMatrix } from './matrix.js';
 import { CLASSES, ENEMY, getRandomTaunt } from './ai-taunt.js';
-import { CombatState, ROUND_DURATION, TEAM_MAX_HP } from './combat.js';
+import {
+  calculateBattleResult,
+  CombatState,
+  getBossRoundInfo,
+  ROUND_DURATION,
+  TEAM_MAX_HP,
+} from './combat.js';
 import { assignFormationSlots } from './models-config.js';
 import { Scene3D } from './scene3d.js';
 import { delay } from './vfx.js';
@@ -147,12 +153,9 @@ export class Game {
   }
 
   _resetRoundUI() {
-    this.selectedClasses.forEach((cls, i) => {
+    this.selectedClasses.forEach((_, i) => {
       const scoreEl = document.getElementById(`p${i + 1}-score`);
-      if (!scoreEl) return;
-      if (cls.role === 'tank') scoreEl.textContent = '護盾: 0';
-      else if (cls.role === 'dps') scoreEl.textContent = '傷害: 0';
-      else scoreEl.textContent = '護盾: 0 / 傷害: 0';
+      if (scoreEl) scoreEl.textContent = '答對: 0';
     });
   }
 
@@ -254,17 +257,11 @@ export class Game {
   }
 
   _onCorrect(playerIdx, cls) {
-    this.combat.applyCorrect(playerIdx, cls);
+    this.combat.applyCorrect(playerIdx);
     const player = this.combat.players[playerIdx];
 
     const scoreEl = document.getElementById(`p${playerIdx + 1}-score`);
-    if (cls.role === 'tank') {
-      scoreEl.textContent = `護盾: ${player.shield}`;
-    } else if (cls.role === 'dps') {
-      scoreEl.textContent = `傷害: ${player.damage}`;
-    } else {
-      scoreEl.textContent = `護盾: ${player.shield} / 傷害: ${player.damage}`;
-    }
+    scoreEl.textContent = `答對: ${player.roundScore}`;
 
     if (cls.role === 'dps') {
       this.scene3d.playHeroAction(cls.id, cls.id === 'assassin' ? 'attack' : 'cast');
@@ -310,47 +307,53 @@ export class Game {
   async _resolveCombat() {
     const indicator = document.getElementById('turn-indicator');
     indicator.classList.remove('hidden');
-    indicator.textContent = '⚔️ 結算中…';
 
-    const computed = this.combat.computeRound();
+    const preview = getBossRoundInfo(this.combat.round);
+    let bossHint = `👹 Boss 準備 ${preview.label}（${preview.rawDamage} 傷）`;
+    if (this.combat.bossIsDebuffed) bossHint += ' — 弱化生效，傷害減半！';
+    indicator.textContent = bossHint;
+    await delay(700);
 
-    // 1. 攻擊角色 → Boss（每次命中獨立顯示）
-    for (const { player } of this.combat.getAttackers()) {
-      if (!player.damageHits.length) continue;
-      indicator.textContent = `⚔️ ${player.class.icon} ${player.class.name} 攻擊！`;
-      await this.scene3d.playHeroAttackHits(player.class.id, player.damageHits);
-      const dmg = player.damageHits.reduce((s, h) => s + h.amount, 0);
-      this.combat.enemyHp = Math.max(0, this.combat.enemyHp - dmg);
-      if (this.combat.enemyHp <= 0) this.combat.victory = true;
+    const result = calculateBattleResult(this.combat, this.combat.round);
+
+    for (const p of result.players) {
+      if (!p.role || p.damage <= 0) continue;
+      const cls = this.selectedClasses[p.index];
+      indicator.textContent = `⚔️ ${cls.icon} ${cls.name} 攻擊！`;
+      await this.scene3d.playHeroAttack(cls.id, p.damage, p.crit);
       this._updateHpBar();
       if (this.combat.victory) break;
     }
 
-    // 2. 防禦角色 → 護盾（每次 +1 獨立顯示）
     if (!this.combat.victory) {
-      for (const { player } of this.combat.getDefenders()) {
-        if (!player.shieldHits.length) continue;
-        indicator.textContent = `🛡️ ${player.class.icon} ${player.class.name} 防禦！`;
-        await this.scene3d.playHeroShieldHits(player.class.id, player.shieldHits.length);
-      }
-
-      for (const { player } of this.combat.getAttackers()) {
-        if (player.class.role === 'hybrid' && player.shieldHits.length) {
-          indicator.textContent = `🛡️ ${player.class.icon} ${player.class.name} 護盾！`;
-          await this.scene3d.playHeroShieldHits(player.class.id, player.shieldHits.length);
-        }
+      for (const p of result.players) {
+        if (!p.role || p.shield <= 0) continue;
+        const cls = this.selectedClasses[p.index];
+        indicator.textContent = `🛡️ ${cls.icon} ${cls.name} 防禦！`;
+        await this.scene3d.playHeroShield(cls.id, p.shield);
       }
     }
 
-    // 3. Boss → 隊伍（一次計算，逐次顯示 -1）
-    if (!this.combat.victory && computed.enemyAttack > 0) {
-      indicator.textContent = '👹 Boss 反擊！';
-      this.combat.applyTeamDamage(computed.enemyAttack);
-      await this.scene3d.playBossAttackTeam(computed.enemyAttack);
-      this._updateTeamHp();
-    } else if (!this.combat.victory && computed.blocked > 0) {
-      indicator.textContent = `🛡️ 護盾完全抵擋 ${computed.blocked} 點傷害！`;
-      await delay(700);
+    if (!this.combat.victory) {
+      if (result.damageReceived > 0) {
+        indicator.textContent = `👹 Boss ${result.bossRound.label}！`;
+        await this.scene3d.playBossAttackTeam(result.damageReceived);
+        this._updateTeamHp();
+      } else if (result.blocked > 0) {
+        indicator.textContent = `🛡️ 護盾完全抵擋 ${Math.round(result.blocked)} 點傷害！`;
+        await delay(700);
+      }
+
+      if (result.bossHeal > 0) {
+        indicator.textContent = `👹 Boss 吸血回復 ${Math.round(result.bossHeal)}！`;
+        await this.scene3d.playBossHeal(result.bossHeal);
+        this._updateHpBar();
+      }
+    }
+
+    if (result.debuffTriggered) {
+      indicator.textContent = '🔮 法師弱化 Boss！下回合傷害減半';
+      await delay(800);
     }
 
     if (this.combat.victory) {
@@ -370,7 +373,8 @@ export class Game {
     this.currentTurnStep = 0;
     this._resetRoundUI();
 
-    indicator.textContent = `第 ${this.combat.round} 回合，繼續迎戰！`;
+    const nextBoss = getBossRoundInfo(this.combat.round);
+    indicator.textContent = `第 ${this.combat.round} 回合 — Boss 將發動${nextBoss.label}`;
     await delay(1000);
     this._beginRoundInput();
   }
@@ -379,7 +383,7 @@ export class Game {
     const pct = this.combat.getHpPercent();
     document.getElementById('enemy-hp-bar').style.width = `${pct}%`;
     document.getElementById('enemy-hp-text').textContent =
-      `${this.combat.enemyHp} / ${this.combat.enemyMaxHp}`;
+      `${Math.round(this.combat.enemyHp)} / ${this.combat.enemyMaxHp}`;
   }
 
   _updateTeamHp() {
@@ -388,7 +392,7 @@ export class Game {
     if (!bar || !text) return;
     const pct = this.combat.getTeamHpPercent();
     bar.style.width = `${pct}%`;
-    text.textContent = `${this.combat.teamHp} / ${this.combat.teamMaxHp}`;
+    text.textContent = `${Math.round(this.combat.teamHp)} / ${this.combat.teamMaxHp}`;
   }
 
   async _showVictory() {
@@ -398,13 +402,11 @@ export class Game {
     await this.scene3d.unlockEquipment(heroClass.id);
 
     document.getElementById('equipment-unlock').classList.remove('hidden');
-    const totalDmg = this.combat.battleTotalDamage + this.combat.totalDamage;
-    const totalShield = this.combat.battleTotalShield + this.combat.totalShield;
     document.getElementById('result-title').textContent = '🎉 勝利！魔王已被擊敗！';
     document.getElementById('result-stats').innerHTML = `
       <p>經過 ${this.combat.round} 回合</p>
-      <p>累計護盾: ${totalShield}</p>
-      <p>累計傷害: ${totalDmg}</p>
+      <p>累計護盾: ${Math.round(this.combat.battleTotalShield)}</p>
+      <p>累計傷害: ${Math.round(this.combat.battleTotalDamage)}</p>
       <p>答對字數: ${this.combat.players.map((p) => p.correctCount).join(' / ')}</p>
     `;
     this._showScreen('screen-result');
@@ -413,12 +415,11 @@ export class Game {
   _showDefeat() {
     document.getElementById('turn-indicator').classList.add('hidden');
     document.getElementById('equipment-unlock').classList.add('hidden');
-    const totalDmg = this.combat.battleTotalDamage + this.combat.totalDamage;
     document.getElementById('result-title').textContent = '💀 戰敗…';
     document.getElementById('result-stats').innerHTML = `
       <p>經過 ${this.combat.round} 回合後隊伍全滅</p>
-      <p>累計造成傷害: ${totalDmg}</p>
-      <p>魔王剩餘 HP: ${this.combat.enemyHp}</p>
+      <p>累計造成傷害: ${Math.round(this.combat.battleTotalDamage)}</p>
+      <p>魔王剩餘 HP: ${Math.round(this.combat.enemyHp)}</p>
     `;
     this._showScreen('screen-result');
   }

@@ -4,9 +4,117 @@
 
 import { ENEMY } from './ai-taunt.js';
 
-export const TEAM_MAX_HP = 20;
+export const TEAM_MAX_HP = 100;
 export const ROUND_DURATION = 10;
-export const ASSASSIN_CRIT_RATE = 0.35;
+
+const MAGE_DEBUFF_THRESHOLD = 15;
+const MAGE_DEBUFF_RATE = 0.35;
+const ASSASSIN_CRIT_RATE = 0.25;
+
+function calcPlayerContribution(role, score) {
+  let damage = 0;
+  let shield = 0;
+  let debuff = false;
+  let crit = false;
+
+  if (!role || score <= 0) {
+    return { damage, shield, debuff, crit };
+  }
+
+  if (role === 'knight') {
+    shield = score * 1.5;
+  } else if (role === 'warrior') {
+    damage = score * 0.6;
+    shield = score * 0.6;
+  } else if (role === 'mage') {
+    damage = score * 0.8;
+    if (score >= MAGE_DEBUFF_THRESHOLD && Math.random() < MAGE_DEBUFF_RATE) {
+      debuff = true;
+    }
+  } else if (role === 'assassin') {
+    damage = score * 0.7;
+    if (Math.random() < ASSASSIN_CRIT_RATE) {
+      damage *= 2;
+      crit = true;
+    }
+  }
+
+  return { damage, shield, debuff, crit };
+}
+
+export function getBossRoundInfo(bossRound) {
+  if (bossRound % 3 === 2) {
+    return { type: 'ultimate', rawDamage: 45, label: '大招', sucking: false };
+  }
+  if (bossRound % 3 === 0) {
+    return { type: 'lifesteal', rawDamage: 20, label: '金蟬脫殼', sucking: true };
+  }
+  return { type: 'normal', rawDamage: 25, label: '普通攻擊', sucking: false };
+}
+
+/**
+ * 戰鬥結算函式 — 依本輪答對題數計算傷害、護盾與 Boss 反擊
+ */
+export function calculateBattleResult(combat, bossRound) {
+  const p1 = combat.players[0];
+  const p2 = combat.players[1];
+  const p1Role = p1?.class?.id;
+  const p2Role = p2?.class?.id;
+  const p1Score = p1?.roundScore || 0;
+  const p2Score = p2?.roundScore || 0;
+
+  const c1 = calcPlayerContribution(p1Role, p1Score);
+  const c2 = calcPlayerContribution(p2Role, p2Score);
+
+  const totalDamage = c1.damage + c2.damage;
+  const totalShield = c1.shield + c2.shield;
+  const nextBossDebuff = c1.debuff || c2.debuff;
+
+  const roundInfo = getBossRoundInfo(bossRound);
+  let bossRawDamage = roundInfo.rawDamage;
+
+  if (combat.bossIsDebuffed) {
+    bossRawDamage *= 0.5;
+    combat.bossIsDebuffed = false;
+  }
+
+  let finalDamageToHero = bossRawDamage - totalShield;
+  if (finalDamageToHero < 0) finalDamageToHero = 0;
+
+  let bossHeal = 0;
+  if (roundInfo.sucking) {
+    bossHeal = finalDamageToHero;
+  }
+
+  combat.enemyHp = Math.max(0, combat.enemyHp - totalDamage);
+  combat.teamHp = Math.max(0, combat.teamHp - finalDamageToHero);
+  combat.enemyHp += bossHeal;
+
+  if (nextBossDebuff) combat.bossIsDebuffed = true;
+
+  combat.battleTotalDamage += totalDamage;
+  combat.battleTotalShield += totalShield;
+
+  if (combat.enemyHp <= 0) combat.victory = true;
+  if (combat.teamHp <= 0) combat.defeat = true;
+
+  return {
+    players: [
+      { index: 0, role: p1Role, score: p1Score, ...c1 },
+      { index: 1, role: p2Role, score: p2Score, ...c2 },
+    ],
+    damageDealt: totalDamage,
+    shieldGenerated: totalShield,
+    damageReceived: finalDamageToHero,
+    bossHeal,
+    debuffTriggered: nextBossDebuff,
+    bossDebuffApplied: bossRawDamage < roundInfo.rawDamage,
+    bossRound: roundInfo,
+    bossRawDamage: roundInfo.rawDamage,
+    bossFinalDamage: bossRawDamage,
+    blocked: Math.max(0, bossRawDamage - finalDamageToHero),
+  };
+}
 
 export class CombatState {
   constructor() {
@@ -20,8 +128,7 @@ export class CombatState {
     this.teamMaxHp = TEAM_MAX_HP;
     this.players = [];
     this.round = 0;
-    this.totalShield = 0;
-    this.totalDamage = 0;
+    this.bossIsDebuffed = false;
     this.battleTotalDamage = 0;
     this.battleTotalShield = 0;
     this.victory = false;
@@ -29,16 +136,9 @@ export class CombatState {
   }
 
   startNewRound() {
-    this.battleTotalDamage += this.totalDamage;
-    this.battleTotalShield += this.totalShield;
     this.round++;
-    this.totalShield = 0;
-    this.totalDamage = 0;
     this.players.forEach((p) => {
-      p.shield = 0;
-      p.damage = 0;
-      p.damageHits = [];
-      p.shieldHits = [];
+      p.roundScore = 0;
     });
   }
 
@@ -46,74 +146,19 @@ export class CombatState {
     return this.teamHp > 0;
   }
 
-  isPlayerAlive() {
-    return this.isTeamAlive();
-  }
-
   addPlayer(classConfig) {
     this.players.push({
       class: classConfig,
-      shield: 0,
-      damage: 0,
-      damageHits: [],
-      shieldHits: [],
+      roundScore: 0,
       correctCount: 0,
     });
   }
 
-  _rollAssassinDamage() {
-    const crit = Math.random() < ASSASSIN_CRIT_RATE;
-    return { amount: crit ? 2 : 1, crit };
-  }
-
-  applyCorrect(playerIndex, classConfig) {
+  applyCorrect(playerIndex) {
     const player = this.players[playerIndex];
     if (!player) return;
-
+    player.roundScore++;
     player.correctCount++;
-
-    switch (classConfig.role) {
-      case 'tank':
-        player.shield++;
-        player.shieldHits.push(1);
-        this.totalShield++;
-        break;
-      case 'dps':
-        if (classConfig.id === 'assassin') {
-          const hit = this._rollAssassinDamage();
-          player.damage += hit.amount;
-          player.damageHits.push(hit);
-          this.totalDamage += hit.amount;
-        } else {
-          player.damage++;
-          player.damageHits.push({ amount: 1, crit: false });
-          this.totalDamage++;
-        }
-        break;
-      case 'hybrid':
-        player.shield++;
-        player.shieldHits.push(1);
-        player.damage++;
-        player.damageHits.push({ amount: 1, crit: false });
-        this.totalShield++;
-        this.totalDamage++;
-        break;
-      default:
-        break;
-    }
-  }
-
-  computeRound() {
-    const damageDealt = Math.max(0, this.totalDamage);
-    const blocked = Math.min(this.totalShield, ENEMY.attackDamage);
-    const enemyAttack = Math.max(0, ENEMY.attackDamage - blocked);
-    return { damageDealt, blocked, enemyAttack };
-  }
-
-  applyTeamDamage(amount) {
-    if (amount <= 0) return;
-    this.teamHp = Math.max(0, this.teamHp - amount);
-    if (this.teamHp <= 0) this.defeat = true;
   }
 
   getHpPercent() {
@@ -122,17 +167,5 @@ export class CombatState {
 
   getTeamHpPercent() {
     return (this.teamHp / this.teamMaxHp) * 100;
-  }
-
-  getAttackers() {
-    return this.players
-      .map((p, i) => ({ player: p, index: i }))
-      .filter(({ player }) => player.damageHits.length > 0);
-  }
-
-  getDefenders() {
-    return this.players
-      .map((p, i) => ({ player: p, index: i }))
-      .filter(({ player }) => player.shieldHits.length > 0);
   }
 }
