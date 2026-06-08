@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div id="version-badge" class="version-badge" title="遊戲版本">v1.4.0</div>
+  <div id="version-badge" class="version-badge" title="遊戲版本">v1.5.0</div>
   <div id="app">
     <div id="game-shell">
     <!-- 3D 場景背景 -->
@@ -36,7 +36,7 @@
         <span class="dialogue-speaker">👹 骷髏魔王</span>
         <p id="taunt-text" class="dialogue-text"></p>
       </div>
-      <button id="btn-ready" class="btn btn-primary">準備迎戰！</button>
+      <p id="taunt-countdown" class="taunt-countdown">準備迎戰中…</p>
     </section>
 
     <!-- 戰鬥畫面：上半 Boss 3D / 下半玩家分屏 -->
@@ -47,10 +47,6 @@
             <div class="battle-header">
               <div class="enemy-info">
                 <span class="enemy-name">👹 骷髏魔王</span>
-                <div class="hp-bar-container">
-                  <div id="enemy-hp-bar" class="hp-bar"></div>
-                  <span id="enemy-hp-text" class="hp-text">100 / 100</span>
-                </div>
               </div>
               <div id="round-timer" class="timer">10</div>
             </div>
@@ -82,6 +78,14 @@
 
       <div id="turn-indicator" class="turn-indicator hidden"></div>
     </section>
+
+    <!-- Boss 頭頂血條（跟隨 3D 模型） -->
+    <div id="boss-hp-floating" class="boss-hp-floating hidden">
+      <div class="hp-bar-container boss-floating-bar">
+        <div id="enemy-hp-bar" class="hp-bar"></div>
+        <span id="enemy-hp-text" class="hp-text">100 / 100</span>
+      </div>
+    </div>
 
     <!-- 結算畫面 -->
     <section id="screen-result" class="screen">

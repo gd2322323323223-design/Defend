@@ -26,11 +26,15 @@ export class Scene3D {
     this.heroSlots = {};
     this.heroIds = [];
     this.isBattleLayout = false;
+    this.showBossHp = false;
     this._init();
   }
 
   setBattleLayout(isBattle) {
     this.isBattleLayout = isBattle;
+    this.showBossHp = isBattle;
+    const hpEl = document.getElementById('boss-hp-floating');
+    if (hpEl && !isBattle) hpEl.classList.add('hidden');
     if (isBattle) this._applyBattleCamera();
     this._onResize();
   }
@@ -320,7 +324,7 @@ export class Scene3D {
       this._playAnimation(heroId, action, { loop: false });
       this.vfx.spawnProjectile(hero, enemy, hit.crit ? 0xffd54f : 0xff6b35);
       await delay(220);
-      this.vfx.spawnHitFlash(enemy, hit.crit ? 0xffd54f : 0xff4444);
+      this.vfx.spawnStylizedHit(enemy, hit.crit ? 'hit02' : 'hit01');
       const label = hit.crit ? `-${hit.display} 暴擊!` : `-${hit.display}`;
       this.vfx.showDamageNumber(enemy, label, hit.crit ? '#ffd54f' : '#ff3333', i);
       this._shakeModel(enemy);
@@ -343,8 +347,8 @@ export class Scene3D {
     }
   }
 
-  /** Boss 反擊隊伍，逐次顯示 -1 */
-  async playBossAttackTeam(totalDamage, onHit) {
+  /** Boss 反擊隊伍 — 一次顯示總傷害 */
+  async playBossAttackTeam(totalDamage) {
     if (totalDamage <= 0) return;
     const enemy = this.models.enemy;
     const teamTarget = this.getFrontHeroModel() || this.models[this.heroIds[0]];
@@ -352,18 +356,37 @@ export class Scene3D {
 
     this._playAnimation('enemy', 'attack', { loop: false });
     await delay(200);
-
-    for (let i = 0; i < totalDamage; i++) {
-      this.vfx.spawnProjectile(enemy, teamTarget, 0x88ccff);
-      await delay(180);
-      this.vfx.spawnHitFlash(teamTarget, 0xef5350);
-      this.vfx.showDamageNumber(teamTarget, '-1', '#ef5350', i);
-      if (onHit) onHit();
-      await delay(120);
-    }
-
+    this.vfx.spawnProjectile(enemy, teamTarget, 0x88ccff);
+    await delay(180);
+    this.vfx.spawnStylizedHit(teamTarget, 'boss');
+    this.vfx.showDamageNumber(teamTarget, `-${Math.round(totalDamage)}`, '#ef5350', 0);
     this._shakeModel(teamTarget);
     this.heroIds.forEach((id) => this._playAnimation(id, 'hit', { loop: false }));
+    await delay(300);
+  }
+
+  _updateBossHpPosition() {
+    const el = document.getElementById('boss-hp-floating');
+    const enemy = this.models.enemy;
+    if (!el || !enemy || !this.showBossHp) return;
+
+    el.classList.remove('hidden');
+    const pos = new THREE.Vector3();
+    enemy.getWorldPosition(pos);
+    pos.y += 2.35;
+    pos.project(this.camera);
+
+    if (pos.z > 1) {
+      el.classList.add('hidden');
+      return;
+    }
+
+    const rect = this.canvas.getBoundingClientRect();
+    const x = rect.left + (pos.x * 0.5 + 0.5) * rect.width;
+    const y = rect.top + (-pos.y * 0.5 + 0.5) * rect.height;
+
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
   }
 
   playEnemyDeath() {
@@ -421,6 +444,7 @@ export class Scene3D {
     requestAnimationFrame(() => this._animate());
     const delta = this.clock.getDelta();
     Object.values(this.animations).forEach(({ mixer }) => mixer.update(delta));
+    if (this.showBossHp) this._updateBossHpPosition();
     this.renderer.render(this.scene, this.camera);
   }
 }

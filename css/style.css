@@ -42,6 +42,44 @@
   user-select: none;
 }
 
+/* Windows 桌面整體縮放，確保 1920×1080 完整顯示 */
+body.platform-windows #app {
+  transform: scale(0.88);
+  transform-origin: top center;
+  height: calc(100% / 0.88);
+}
+
+/* Boss 頭頂浮動血條 */
+.boss-hp-floating {
+  position: fixed;
+  z-index: 25;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  min-width: 120px;
+}
+
+.boss-hp-floating .boss-floating-bar {
+  width: 140px;
+  max-width: none;
+  height: 18px;
+  margin-top: 0;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+}
+
+.boss-hp-floating .hp-text {
+  font-size: 0.7rem;
+}
+
+/* 叫陣倒數 */
+.taunt-countdown {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--accent-gold);
+  margin-top: 8px;
+  animation: timer-pulse 1s infinite;
+}
+
 html, body {
   width: 100%;
   height: 100%;
@@ -729,6 +767,11 @@ html, body {
   :root {
     --shell-max: 1600px;
     --battle-canvas-h: min(50vh, 540px);
+  }
+
+  body.platform-windows #app {
+    transform: scale(0.85);
+    height: calc(100% / 0.85);
   }
 
   .game-title {

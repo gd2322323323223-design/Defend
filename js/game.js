@@ -37,7 +37,6 @@ export class Game {
     });
 
     document.getElementById('btn-start-battle').addEventListener('click', () => this._startTaunt());
-    document.getElementById('btn-ready').addEventListener('click', () => this._startBattle());
     document.getElementById('btn-replay').addEventListener('click', () => this._goToMenu());
   }
 
@@ -120,6 +119,13 @@ export class Game {
     this._showScreen('screen-taunt');
     this.scene3d.clearScene();
     await this.scene3d.loadEnemy(ENEMY.modelPath);
+
+    const countdownEl = document.getElementById('taunt-countdown');
+    countdownEl.textContent = '2 秒後進入戰鬥…';
+    await delay(1000);
+    countdownEl.textContent = '1 秒後進入戰鬥…';
+    await delay(1000);
+    await this._startBattle();
   }
 
   async _startBattle() {
@@ -344,11 +350,10 @@ export class Game {
     if (!this.combat.victory) {
       if (result.damageReceived > 0) {
         indicator.textContent = `👹 Boss ${result.bossRound.label}！`;
-        await this.scene3d.playBossAttackTeam(result.damageReceived, () => {
-          this.combat.teamHp = Math.max(0, this.combat.teamHp - 1);
-          this._updateTeamHp();
-          if (this.combat.teamHp <= 0) this.combat.defeat = true;
-        });
+        await this.scene3d.playBossAttackTeam(result.damageReceived);
+        this.combat.teamHp = Math.max(0, this.combat.teamHp - result.damageReceived);
+        this._updateTeamHp();
+        if (this.combat.teamHp <= 0) this.combat.defeat = true;
       } else if (result.blocked > 0) {
         indicator.textContent = `🛡️ 護盾完全抵擋 ${Math.round(result.blocked)} 點傷害！`;
         await delay(700);
@@ -462,6 +467,8 @@ export class Game {
 
     const isBattle = id === 'screen-battle';
     document.getElementById('app').classList.toggle('battle-active', isBattle);
+    const bossHp = document.getElementById('boss-hp-floating');
+    if (bossHp && !isBattle) bossHp.classList.add('hidden');
     if (this.scene3d) {
       this.scene3d.setBattleLayout(isBattle);
     }

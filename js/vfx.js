@@ -3,6 +3,7 @@
  */
 
 import * as THREE from 'three';
+import { spawnStylizedHit } from './hit-effects.js';
 
 export class BattleVFX {
   constructor(scene) {
@@ -89,36 +90,17 @@ export class BattleVFX {
   }
 
   spawnHitFlash(model, color = 0xff4444) {
-    const pos = new THREE.Vector3();
-    model.getWorldPosition(pos);
-    const geo = new THREE.RingGeometry(0.25, 0.65, 12);
-    const mat = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.85,
-      side: THREE.DoubleSide,
-      depthTest: false,
-    });
-    const ring = new THREE.Mesh(geo, mat);
-    ring.renderOrder = 997;
-    ring.position.set(pos.x, pos.y + 1.2, pos.z);
-    ring.rotation.x = -Math.PI / 2;
-    this.scene.add(ring);
-    this._track(ring, 400);
+    const preset = color === 0xffd54f ? 'hit02' : 'hit01';
+    this.spawnStylizedHit(model, preset);
+  }
 
-    const start = performance.now();
-    const tick = () => {
-      const t = (performance.now() - start) / 400;
-      if (t >= 1) return;
-      ring.scale.setScalar(1 + t * 1.8);
-      mat.opacity = 0.85 * (1 - t);
-      requestAnimationFrame(tick);
-    };
-    tick();
+  /** StylizedHitFX 風格受擊特效 */
+  spawnStylizedHit(model, preset = 'hit01') {
+    spawnStylizedHit(this.scene, (obj, ttl) => this._track(obj, ttl), model, preset);
   }
 
   spawnShieldFlash(model) {
-    this.spawnHitFlash(model, 0x4fc3f7);
+    this.spawnStylizedHit(model, 'shield');
   }
 
   clear() {

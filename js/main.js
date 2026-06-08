@@ -9,5 +9,9 @@ import { APP_VERSION } from './version.js';
 const badge = document.getElementById('version-badge');
 if (badge) badge.textContent = APP_VERSION;
 
+if (/Windows/i.test(navigator.userAgent)) {
+  document.body.classList.add('platform-windows');
+}
+
 const game = new Game();
 game.init();
