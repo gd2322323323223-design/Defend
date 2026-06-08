@@ -7,6 +7,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js';
 import { EquipmentManager } from './equipment.js';
 import { BattleVFX, delay } from './vfx.js';
+import { formatCombatNumber } from './combat.js';
 import {
   ANIMATION_FILES,
   ANIM_MAP,
@@ -322,7 +323,7 @@ export class Scene3D {
     this.vfx.spawnProjectile(hero, enemy, crit ? 0xffd54f : 0xff6b35);
     await delay(220);
     this.vfx.spawnHitFlash(enemy, crit ? 0xffd54f : 0xff4444);
-    const label = crit ? `-${Math.round(damage)} 暴擊!` : `-${Math.round(damage)}`;
+    const label = crit ? `-${formatCombatNumber(damage)} 暴擊!` : `-${formatCombatNumber(damage)}`;
     this.vfx.showDamageNumber(enemy, label, crit ? '#ffd54f' : '#ff3333', 0);
     this._shakeModel(enemy);
     await delay(300);
@@ -361,7 +362,9 @@ export class Scene3D {
       this.vfx.spawnProjectile(hero, enemy, hit.crit ? 0xffd54f : 0xff6b35);
       await delay(220);
       this.vfx.spawnStylizedHit(enemy, hit.crit ? 'hit02' : 'hit01');
-      const label = hit.crit ? `-${hit.display} 暴擊!` : `-${hit.display}`;
+      const label = hit.crit
+        ? `-${formatCombatNumber(hit.amount)} 暴擊!`
+        : `-${formatCombatNumber(hit.amount)}`;
       this.vfx.showDamageNumber(enemy, label, hit.crit ? '#ffd54f' : '#ff3333', i);
       this._shakeModel(enemy);
       if (onHit) onHit(hit);
@@ -378,7 +381,7 @@ export class Scene3D {
       const hit = hits[i];
       this._playAnimation(heroId, 'block', { loop: false });
       this.vfx.spawnShieldFlash(hero);
-      this.vfx.showDamageNumber(hero, `+${hit.display} 盾`, '#4fc3f7', i);
+      this.vfx.showDamageNumber(hero, `+${formatCombatNumber(hit.amount)} 盾`, '#4fc3f7', i);
       await delay(200);
     }
   }

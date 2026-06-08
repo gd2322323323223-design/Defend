@@ -25,6 +25,17 @@ const MAGE_DEBUFF_THRESHOLD = 4;
 const MAGE_DEBUFF_RATE = 0.5;
 const ASSASSIN_CRIT_RATE = 0.25;
 
+export const SHIELD_OVERFLOW_LIMIT = 15;
+export const SHIELD_CONVERT_TO_DAMAGE = 10;
+
+/** 戰鬥數值顯示（保留小數，整數不帶 .0） */
+export function formatCombatNumber(value) {
+  const n = Number(value);
+  if (Number.isNaN(n)) return '0';
+  if (Number.isInteger(n)) return String(n);
+  return n.toFixed(1);
+}
+
 /** 每次答對獨立產生一筆命中 */
 function rollHit(classId) {
   switch (classId) {
@@ -33,9 +44,9 @@ function rollHit(classId) {
     case 'warrior':
       return { damage: 1, shield: 1, damageDisplay: 1, shieldDisplay: 1 };
     case 'mage':
-      return { damage: 1.6, damageDisplay: 2 };
+      return { damage: 1.6, damageDisplay: 1.6 };
     case 'assassin':
-      return { damage: 1.4, damageDisplay: 1 };
+      return { damage: 1.4, damageDisplay: 1.4 };
     default:
       return {};
   }
@@ -69,7 +80,7 @@ export function getDamageHitsForResolve(player, classId) {
     return hits.map((h) => ({
       ...h,
       amount: h.amount * 2,
-      display: h.display * 2,
+      display: h.amount * 2,
       crit: true,
     }));
   }
@@ -77,6 +88,14 @@ export function getDamageHitsForResolve(player, classId) {
 }
 
 export { sumPlayerHits };
+
+export function getRoundShieldTotal(combat) {
+  const raw = combat.players.reduce(
+    (s, p) => s + sumHits(p.shieldHits || [], 'amount'),
+    0,
+  );
+  return Math.max(0, raw - (combat.roundShieldPenalty || 0));
+}
 
 function checkMageDebuff(players) {
   for (const p of players) {
@@ -140,10 +159,13 @@ export function computeBattleResult(combat, bossRound) {
 
 /** Boss 階段結算（玩家攻擊已在各自回合完成） */
 export function computeBossPhase(combat, bossRound) {
-  const totalShield = combat.players.reduce(
-    (s, p) => s + sumHits(p.shieldHits || [], 'amount'),
-    0,
-  );
+  let totalShield = getRoundShieldTotal(combat);
+  let overflowDamage = 0;
+
+  if (totalShield > SHIELD_OVERFLOW_LIMIT) {
+    overflowDamage = SHIELD_CONVERT_TO_DAMAGE;
+    totalShield -= SHIELD_CONVERT_TO_DAMAGE;
+  }
 
   const nextBossDebuff = checkMageDebuff(combat.players);
 
@@ -161,6 +183,7 @@ export function computeBossPhase(combat, bossRound) {
 
   return {
     shieldGenerated: totalShield,
+    overflowDamage,
     damageReceived: finalDamageToHero,
     bossHeal,
     debuffTriggered: nextBossDebuff,
@@ -189,6 +212,7 @@ export class CombatState {
     this.players = [];
     this.round = 0;
     this.bossIsDebuffed = false;
+    this.roundShieldPenalty = 0;
     this.battleTotalDamage = 0;
     this.battleTotalShield = 0;
     this.victory = false;
@@ -197,6 +221,7 @@ export class CombatState {
 
   startNewRound() {
     this.round++;
+    this.roundShieldPenalty = 0;
     this.players.forEach((p) => {
       p.roundScore = 0;
       p.damageHits = [];
@@ -229,14 +254,14 @@ export class CombatState {
     if (hit.damage) {
       player.damageHits.push({
         amount: hit.damage,
-        display: hit.damageDisplay,
+        display: hit.damageDisplay ?? hit.damage,
         crit: false,
       });
     }
     if (hit.shield) {
       player.shieldHits.push({
         amount: hit.shield,
-        display: hit.shieldDisplay,
+        display: hit.shieldDisplay ?? hit.shield,
       });
     }
   }

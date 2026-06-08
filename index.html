@@ -43,11 +43,7 @@
     <section id="screen-battle" class="screen">
       <div class="battle-layout">
         <div class="boss-zone" id="boss-zone">
-          <div class="boss-hud">
-            <div class="battle-header">
-              <div id="round-timer" class="timer">10</div>
-            </div>
-          </div>
+          <div class="boss-hud"></div>
         </div>
 
         <div id="players-row" class="players-row">
@@ -55,16 +51,24 @@
             <div class="zone-class-title">
               <span id="p1-class-icon" class="class-icon">🛡️</span>
               <span id="p1-class-name">騎士</span>
+              <span id="p1-zone-timer" class="zone-timer hidden">10</span>
             </div>
-            <div id="matrix-p1" class="word-matrix"></div>
+            <div class="zone-matrix-wrap">
+              <button type="button" id="p1-ready-btn" class="btn-ready-turn hidden">準備好了</button>
+              <div id="matrix-p1" class="word-matrix hidden"></div>
+            </div>
             <span id="p1-score" class="zone-score">答對: 0</span>
           </div>
           <div id="player2-zone" class="player-zone player-zone-p2 hidden">
             <div class="zone-class-title">
               <span id="p2-class-icon" class="class-icon">🔮</span>
               <span id="p2-class-name">法師</span>
+              <span id="p2-zone-timer" class="zone-timer hidden">10</span>
             </div>
-            <div id="matrix-p2" class="word-matrix"></div>
+            <div class="zone-matrix-wrap">
+              <button type="button" id="p2-ready-btn" class="btn-ready-turn hidden">準備好了</button>
+              <div id="matrix-p2" class="word-matrix hidden"></div>
+            </div>
             <span id="p2-score" class="zone-score">答對: 0</span>
           </div>
         </div>
@@ -84,10 +88,15 @@
       </div>
     </div>
     <div id="team-hp-floating" class="team-hp-floating hidden">
-      <span class="team-hp-label">❤️ 隊伍生命</span>
-      <div class="hp-bar-container small team-floating-bar">
-        <div class="hp-bar player-hp-fill" id="team-hp-bar"></div>
-        <span class="hp-text" id="team-hp-text">20 / 20</span>
+      <div class="team-hp-block">
+        <span class="team-hp-label">❤️ 隊伍生命</span>
+        <div class="hp-bar-container small team-floating-bar">
+          <div class="hp-bar player-hp-fill" id="team-hp-bar"></div>
+          <span class="hp-text" id="team-hp-text">20 / 20</span>
+        </div>
+      </div>
+      <div id="team-shield-row" class="team-shield-row hidden">
+        🛡️ 盾甲 <span id="team-shield-text">0</span>
       </div>
     </div>
     <div id="hero-labels">

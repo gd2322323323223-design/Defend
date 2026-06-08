@@ -8,8 +8,10 @@ import {
   computeBossPhase,
   applyBossPhaseResult,
   CombatState,
+  formatCombatNumber,
   getBossRoundInfo,
   getDamageHitsForResolve,
+  getRoundShieldTotal,
   ROUND_DURATION,
   TEAM_MAX_HP,
   sumPlayerHits,
@@ -31,6 +33,7 @@ export class Game {
     this.formationSlots = [];
     this.scene3d = null;
     this._resolving = false;
+    this._activePlayerIdx = null;
     this._bindUI();
   }
 
@@ -167,6 +170,7 @@ export class Game {
       const scoreEl = document.getElementById(`p${i + 1}-score`);
       if (scoreEl) scoreEl.textContent = '答對: 0';
     });
+    this._updateRoundShield();
   }
 
   _setupBattleUI() {
@@ -189,6 +193,27 @@ export class Game {
 
     this._updateHpBar();
     this._updateTeamHp();
+    this._updateRoundShield();
+  }
+
+  _updateRoundShield() {
+    const row = document.getElementById('team-shield-row');
+    const text = document.getElementById('team-shield-text');
+    if (!row || !text) return;
+    const shield = getRoundShieldTotal(this.combat);
+    if (shield > 0) {
+      row.classList.remove('hidden');
+      text.textContent = formatCombatNumber(shield);
+    } else {
+      row.classList.add('hidden');
+    }
+  }
+
+  _hideAllZoneTimers() {
+    [1, 2].forEach((n) => {
+      document.getElementById(`p${n}-zone-timer`)?.classList.add('hidden');
+      document.getElementById(`p${n}-ready-btn`)?.classList.add('hidden');
+    });
   }
 
   _updateZoneStates(activePlayerIdx) {
@@ -220,8 +245,10 @@ export class Game {
       return;
     }
     const cls = this.selectedClasses[playerIdx];
+    this._activePlayerIdx = playerIdx;
 
     this._updateZoneStates(playerIdx);
+    this._hideAllZoneTimers();
 
     document.getElementById(`p${playerIdx + 1}-class-icon`).textContent = cls.icon;
     document.getElementById(`p${playerIdx + 1}-class-name`).textContent = cls.name;
@@ -237,10 +264,32 @@ export class Game {
 
     const indicator = document.getElementById('turn-indicator');
     indicator.classList.remove('hidden');
-    indicator.textContent = `第 ${this.combat.round} 回合 — ${this._getPhaseLabel(cls)}階段 — ${cls.icon} ${cls.name}！限時 ${ROUND_DURATION} 秒`;
+    indicator.textContent = `第 ${this.combat.round} 回合 — ${this._getPhaseLabel(cls)}階段 — ${cls.icon} ${cls.name}`;
 
-    const container = document.getElementById(`matrix-p${playerIdx + 1}`);
-    const matrix = new WordMatrix(container, {
+    const matrixEl = document.getElementById(`matrix-p${playerIdx + 1}`);
+    matrixEl.innerHTML = '';
+    matrixEl.classList.add('hidden');
+
+    const readyBtn = document.getElementById(`p${playerIdx + 1}-ready-btn`);
+    readyBtn.classList.remove('hidden');
+    readyBtn.onclick = () => this._onPlayerReady(playerIdx, cls);
+
+    if (cls.role === 'tank') {
+      this.scene3d.playHeroAction(cls.id, 'block');
+    } else {
+      this.scene3d.playHeroAction(cls.id, cls.id === 'assassin' ? 'attack' : 'cast');
+    }
+  }
+
+  _onPlayerReady(playerIdx, cls) {
+    const readyBtn = document.getElementById(`p${playerIdx + 1}-ready-btn`);
+    readyBtn.classList.add('hidden');
+    readyBtn.onclick = null;
+
+    const matrixEl = document.getElementById(`matrix-p${playerIdx + 1}`);
+    matrixEl.classList.remove('hidden');
+
+    const matrix = new WordMatrix(matrixEl, {
       radical: '火',
       onCorrect: () => this._onCorrect(playerIdx, cls),
       onWrong: () => this._onWrong(playerIdx, cls),
@@ -248,13 +297,29 @@ export class Game {
     matrix.render();
     this.matrices.push(matrix);
 
-    if (cls.role === 'tank') {
-      this.scene3d.playHeroAction(cls.id, 'block');
-    } else {
-      this.scene3d.playHeroAction(cls.id, cls.id === 'assassin' ? 'attack' : 'cast');
-    }
+    const indicator = document.getElementById('turn-indicator');
+    indicator.textContent = `第 ${this.combat.round} 回合 — ${cls.icon} ${cls.name} — 限時 ${ROUND_DURATION} 秒`;
 
-    this._startTimer(() => this._endTurn());
+    this._startZoneTimer(playerIdx, () => this._endTurn());
+  }
+
+  _startZoneTimer(playerIdx, onEnd) {
+    this.timeLeft = ROUND_DURATION;
+    const timerEl = document.getElementById(`p${playerIdx + 1}-zone-timer`);
+    timerEl.textContent = this.timeLeft;
+    timerEl.classList.remove('hidden', 'urgent');
+
+    clearInterval(this.timerInterval);
+    this.timerInterval = setInterval(() => {
+      this.timeLeft--;
+      timerEl.textContent = this.timeLeft;
+      if (this.timeLeft <= 3) timerEl.classList.add('urgent');
+      if (this.timeLeft <= 0) {
+        clearInterval(this.timerInterval);
+        timerEl.classList.add('hidden');
+        onEnd();
+      }
+    }, 1000);
   }
 
   _onCorrect(playerIdx, cls) {
@@ -263,6 +328,10 @@ export class Game {
 
     const scoreEl = document.getElementById(`p${playerIdx + 1}-score`);
     scoreEl.textContent = `答對: ${player.roundScore}`;
+
+    if (cls.role === 'tank' || cls.role === 'hybrid') {
+      this._updateRoundShield();
+    }
 
     if (cls.role === 'dps') {
       this.scene3d.playHeroAction(cls.id, cls.id === 'assassin' ? 'attack' : 'cast');
@@ -277,27 +346,12 @@ export class Game {
     }
   }
 
-  _startTimer(onEnd) {
-    this.timeLeft = ROUND_DURATION;
-    const timerEl = document.getElementById('round-timer');
-    timerEl.textContent = this.timeLeft;
-    timerEl.classList.remove('urgent');
-
-    clearInterval(this.timerInterval);
-    this.timerInterval = setInterval(() => {
-      this.timeLeft--;
-      timerEl.textContent = this.timeLeft;
-      if (this.timeLeft <= 3) timerEl.classList.add('urgent');
-      if (this.timeLeft <= 0) {
-        clearInterval(this.timerInterval);
-        onEnd();
-      }
-    }, 1000);
-  }
-
   _endTurn() {
     if (this._resolving) return;
     this._cleanupMatrices();
+    if (this._activePlayerIdx !== null) {
+      document.getElementById(`p${this._activePlayerIdx + 1}-zone-timer`)?.classList.add('hidden');
+    }
     this._resolving = true;
     this._finishPlayerTurn().finally(() => {
       this._resolving = false;
@@ -352,6 +406,7 @@ export class Game {
       indicator.textContent = `🛡️ ${cls.icon} ${cls.name} 防禦！`;
       await this.scene3d.playHeroShieldHits(cls.id, player.shieldHits);
       this.combat.battleTotalShield += totals.shield;
+      this._updateRoundShield();
     }
   }
 
@@ -366,6 +421,20 @@ export class Game {
     await delay(700);
 
     const result = computeBossPhase(this.combat, this.combat.round);
+
+    if (!this.combat.victory && result.overflowDamage > 0) {
+      indicator.textContent = '🛡️ 盾甲超過15！10點轉化為攻擊！';
+      const attacker = this.selectedClasses.find((c) => c.role === 'tank' || c.role === 'hybrid')
+        || this.selectedClasses[0];
+      await this.scene3d.playHeroAttack(attacker.id, result.overflowDamage);
+      this.combat.enemyHp = Math.max(0, this.combat.enemyHp - result.overflowDamage);
+      this.combat.battleTotalDamage += result.overflowDamage;
+      this.combat.roundShieldPenalty = result.overflowDamage;
+      this._updateHpBar();
+      this._updateRoundShield();
+      if (this.combat.enemyHp <= 0) this.combat.victory = true;
+      await delay(500);
+    }
 
     if (!this.combat.victory) {
       if (result.damageReceived > 0) {
