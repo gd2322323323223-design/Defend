@@ -1,33 +1,41 @@
 /**
- * 戰鬥結算模組
+ * 戰鬥結算模組 — 全局血量與職業乘數
  */
 
 import { ENEMY } from './ai-taunt.js';
 
-export const TEAM_MAX_HP = 100;
+/** 全隊英雄總血量 */
+export const HERO_HP = 20;
+export const TEAM_MAX_HP = HERO_HP;
+
+/** Boss 初始血量 */
+export const BOSS_HP = 50;
+
 export const ROUND_DURATION = 10;
 
-const MAGE_DEBUFF_THRESHOLD = 15;
-const MAGE_DEBUFF_RATE = 0.35;
+/** 職業能量轉換乘數（1 次答對 = 1 點能量） */
+export const CLASS_MULTIPLIERS = {
+  knight: { shield: 2 },
+  warrior: { damage: 1, shield: 1 },
+  mage: { damage: 1.6 },
+  assassin: { damage: 1.4 },
+};
+
+const MAGE_DEBUFF_THRESHOLD = 4;
+const MAGE_DEBUFF_RATE = 0.5;
 const ASSASSIN_CRIT_RATE = 0.25;
 
 /** 每次答對獨立產生一筆命中 */
 function rollHit(classId) {
   switch (classId) {
     case 'knight':
-      return { shield: 1.5, shieldDisplay: 1 };
+      return { shield: 2, shieldDisplay: 2 };
     case 'warrior':
-      return { damage: 0.6, shield: 0.6, damageDisplay: 1, shieldDisplay: 1 };
+      return { damage: 1, shield: 1, damageDisplay: 1, shieldDisplay: 1 };
     case 'mage':
-      return { damage: 1, damageDisplay: 1 };
-    case 'assassin': {
-      const crit = Math.random() < ASSASSIN_CRIT_RATE;
-      return {
-        damage: crit ? 1.4 : 0.7,
-        damageDisplay: crit ? 2 : 1,
-        crit,
-      };
-    }
+      return { damage: 1.6, damageDisplay: 2 };
+    case 'assassin':
+      return { damage: 1.4, damageDisplay: 1 };
     default:
       return {};
   }
@@ -35,12 +43,12 @@ function rollHit(classId) {
 
 export function getBossRoundInfo(bossRound) {
   if (bossRound % 3 === 2) {
-    return { type: 'ultimate', rawDamage: 40, label: '大招', sucking: false };
+    return { type: 'ultimate', rawDamage: 18, label: '蓄力重擊', sucking: false };
   }
   if (bossRound % 3 === 0) {
-    return { type: 'lifesteal', rawDamage: 15, label: '金蟬脫殼', sucking: true };
+    return { type: 'lifesteal', rawDamage: 8, label: '吸血撕咬', sucking: true };
   }
-  return { type: 'normal', rawDamage: 20, label: '普通攻擊', sucking: false };
+  return { type: 'normal', rawDamage: 10, label: '普通攻擊', sucking: false };
 }
 
 function sumHits(hits, key) {
@@ -54,7 +62,31 @@ function sumPlayerHits(player) {
   };
 }
 
+/** 刺客整輪暴擊判定（25% 傷害翻倍） */
+export function getDamageHitsForResolve(player, classId) {
+  const hits = (player.damageHits || []).map((h) => ({ ...h }));
+  if (classId === 'assassin' && hits.length > 0 && Math.random() < ASSASSIN_CRIT_RATE) {
+    return hits.map((h) => ({
+      ...h,
+      amount: h.amount * 2,
+      display: h.display * 2,
+      crit: true,
+    }));
+  }
+  return hits;
+}
+
 export { sumPlayerHits };
+
+function checkMageDebuff(players) {
+  for (const p of players) {
+    if (p.class?.id === 'mage' && (p.roundScore || 0) >= MAGE_DEBUFF_THRESHOLD
+      && Math.random() < MAGE_DEBUFF_RATE) {
+      return true;
+    }
+  }
+  return false;
+}
 
 /**
  * 戰鬥結算 — 僅計算，不修改 HP（由 game.js 逐次套用）
@@ -77,31 +109,19 @@ export function computeBattleResult(combat, bossRound) {
 
   const totalDamage = players.reduce((s, p) => s + p.damage, 0);
   const totalShield = players.reduce((s, p) => s + p.shield, 0);
-
-  let nextBossDebuff = false;
-  for (const p of players) {
-    if (p.role === 'mage' && p.score >= MAGE_DEBUFF_THRESHOLD && Math.random() < MAGE_DEBUFF_RATE) {
-      nextBossDebuff = true;
-      break;
-    }
-  }
+  const nextBossDebuff = checkMageDebuff(combat.players);
 
   const roundInfo = getBossRoundInfo(bossRound);
   let bossRawDamage = roundInfo.rawDamage;
   const bossDebuffApplied = combat.bossIsDebuffed;
 
-  if (bossDebuffApplied) {
-    bossRawDamage *= 0.5;
-  }
+  if (bossDebuffApplied) bossRawDamage *= 0.5;
 
-  let finalDamageToHero = bossRawDamage - totalShield;
-  if (finalDamageToHero < 0) finalDamageToHero = 0;
+  let finalDamageToHero = Math.max(0, bossRawDamage - totalShield);
   finalDamageToHero = Math.round(finalDamageToHero);
 
   let bossHeal = 0;
-  if (roundInfo.sucking) {
-    bossHeal = finalDamageToHero;
-  }
+  if (roundInfo.sucking) bossHeal = finalDamageToHero;
 
   return {
     players,
@@ -125,14 +145,7 @@ export function computeBossPhase(combat, bossRound) {
     0,
   );
 
-  let nextBossDebuff = false;
-  for (const p of combat.players) {
-    if (p.class?.id === 'mage' && (p.roundScore || 0) >= MAGE_DEBUFF_THRESHOLD
-      && Math.random() < MAGE_DEBUFF_RATE) {
-      nextBossDebuff = true;
-      break;
-    }
-  }
+  const nextBossDebuff = checkMageDebuff(combat.players);
 
   const roundInfo = getBossRoundInfo(bossRound);
   let bossRawDamage = roundInfo.rawDamage;
@@ -217,7 +230,7 @@ export class CombatState {
       player.damageHits.push({
         amount: hit.damage,
         display: hit.damageDisplay,
-        crit: hit.crit || false,
+        crit: false,
       });
     }
     if (hit.shield) {

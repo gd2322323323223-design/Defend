@@ -9,6 +9,7 @@ import {
   applyBossPhaseResult,
   CombatState,
   getBossRoundInfo,
+  getDamageHitsForResolve,
   ROUND_DURATION,
   TEAM_MAX_HP,
   sumPlayerHits,
@@ -327,17 +328,22 @@ export class Game {
     const player = this.combat.players[playerIdx];
     const cls = this.selectedClasses[playerIdx];
     const indicator = document.getElementById('turn-indicator');
+
+    const damageHits = getDamageHitsForResolve(player, cls.id);
+    const totalDamage = damageHits.reduce((s, h) => s + h.amount, 0);
     const totals = sumPlayerHits(player);
 
-    if (player.damageHits.length) {
+    if (damageHits.length) {
       indicator.classList.remove('hidden');
-      indicator.textContent = `⚔️ ${cls.icon} ${cls.name} 攻擊！`;
-      await this.scene3d.playHeroAttackHits(cls.id, player.damageHits, (hit) => {
+      indicator.textContent = damageHits.some((h) => h.crit)
+        ? `⚔️ ${cls.icon} ${cls.name} 暴擊！`
+        : `⚔️ ${cls.icon} ${cls.name} 攻擊！`;
+      await this.scene3d.playHeroAttackHits(cls.id, damageHits, (hit) => {
         this.combat.enemyHp = Math.max(0, this.combat.enemyHp - hit.amount);
         this._updateHpBar();
         if (this.combat.enemyHp <= 0) this.combat.victory = true;
       });
-      this.combat.battleTotalDamage += totals.damage;
+      this.combat.battleTotalDamage += totalDamage;
       if (this.combat.victory) return;
     }
 
@@ -355,7 +361,7 @@ export class Game {
 
     const preview = getBossRoundInfo(this.combat.round);
     let bossHint = `👹 Boss 準備 ${preview.label}（${preview.rawDamage} 傷）`;
-    if (this.combat.bossIsDebuffed) bossHint += ' — 弱化生效，傷害減半！';
+    if (this.combat.bossIsDebuffed) bossHint += ' — 寒冰凍結生效，傷害減半！';
     indicator.textContent = bossHint;
     await delay(700);
 
@@ -384,7 +390,7 @@ export class Game {
     applyBossPhaseResult(this.combat, result);
 
     if (result.debuffTriggered) {
-      indicator.textContent = '🔮 法師弱化 Boss！下回合傷害減半';
+      indicator.textContent = '🔮 法師寒冰凍結！下回合 Boss 傷害減半';
       await delay(800);
     }
 
