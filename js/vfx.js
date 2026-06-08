@@ -7,7 +7,7 @@ import {
   spawnStylizedHit,
   getHitPresetForClass,
   getHitPresetForBoss,
-} from './hit-effects.js';
+} from '@/hit-effects.js';
 
 const CLASS_PROJECTILE = {
   knight: { color: 0x4fc3f7, glow: 0x29b6f6, size: 0.14, speed: 300, shape: 'shield' },

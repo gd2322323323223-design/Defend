@@ -5,15 +5,15 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js';
-import { EquipmentManager } from './equipment.js';
-import { BattleVFX, delay } from './vfx.js';
-import { formatCombatNumber } from './combat.js';
+import { EquipmentManager } from '@/equipment.js';
+import { BattleVFX, delay } from '@/vfx.js';
+import { formatCombatNumber } from '@/combat.js';
 import {
   ANIMATION_FILES,
   ANIM_MAP,
   BATTLE_FORMATION,
   PRELOAD_MODELS,
-} from './models-config.js';
+} from '@/models-config.js';
 
 export class Scene3D {
   constructor(canvas) {

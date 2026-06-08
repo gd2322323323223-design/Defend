@@ -2,7 +2,7 @@
  * 戰鬥結算模組 — 全局血量與職業乘數
  */
 
-import { ENEMY } from './ai-taunt.js';
+import { ENEMY } from '@/ai-taunt.js';
 
 /** 全隊英雄總血量 */
 export const HERO_HP = 20;
@@ -45,8 +45,12 @@ function rollHit(classId) {
       return { damage: 1, shield: 1, damageDisplay: 1, shieldDisplay: 1 };
     case 'mage':
       return { damage: 1.6, damageDisplay: 1.6 };
-    case 'assassin':
-      return { damage: 1.4, damageDisplay: 1.4 };
+    case 'assassin': {
+      const crit = Math.random() < ASSASSIN_CRIT_RATE;
+      const base = 1.4;
+      const amount = crit ? base * 2 : base;
+      return { damage: amount, damageDisplay: amount, crit };
+    }
     default:
       return {};
   }
@@ -73,18 +77,9 @@ function sumPlayerHits(player) {
   };
 }
 
-/** 刺客整輪暴擊判定（25% 傷害翻倍） */
-export function getDamageHitsForResolve(player, classId) {
-  const hits = (player.damageHits || []).map((h) => ({ ...h }));
-  if (classId === 'assassin' && hits.length > 0 && Math.random() < ASSASSIN_CRIT_RATE) {
-    return hits.map((h) => ({
-      ...h,
-      amount: h.amount * 2,
-      display: h.amount * 2,
-      crit: true,
-    }));
-  }
-  return hits;
+/** 結算用傷害命中列表（刺客暴擊已在每次答對時獨立判定） */
+export function getDamageHitsForResolve(player) {
+  return (player.damageHits || []).map((h) => ({ ...h }));
 }
 
 export { sumPlayerHits };
@@ -255,7 +250,7 @@ export class CombatState {
       player.damageHits.push({
         amount: hit.damage,
         display: hit.damageDisplay ?? hit.damage,
-        crit: false,
+        crit: hit.crit ?? false,
       });
     }
     if (hit.shield) {

@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { EQUIPMENT_CATALOG, HAND_BONES } from './models-config.js';
+import { EQUIPMENT_CATALOG, HAND_BONES } from '@/models-config.js';
 
 export class EquipmentManager {
   constructor() {

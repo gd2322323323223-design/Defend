@@ -2,8 +2,8 @@
  * 遊戲主狀態機
  */
 
-import { WordMatrix } from './matrix.js';
-import { CLASSES, ENEMY, getRandomTaunt } from './ai-taunt.js';
+import { WordMatrix } from '@/matrix.js';
+import { CLASSES, ENEMY, getRandomTaunt } from '@/ai-taunt.js';
 import {
   computeBossPhase,
   applyBossPhaseResult,
@@ -15,10 +15,10 @@ import {
   ROUND_DURATION,
   TEAM_MAX_HP,
   sumPlayerHits,
-} from './combat.js';
-import { assignFormationSlots } from './models-config.js';
-import { Scene3D } from './scene3d.js';
-import { delay } from './vfx.js';
+} from '@/combat.js';
+import { assignFormationSlots } from '@/models-config.js';
+import { Scene3D } from '@/scene3d.js';
+import { delay } from '@/vfx.js';
 
 export class Game {
   constructor() {
@@ -383,7 +383,7 @@ export class Game {
     const cls = this.selectedClasses[playerIdx];
     const indicator = document.getElementById('turn-indicator');
 
-    const damageHits = getDamageHitsForResolve(player, cls.id);
+    const damageHits = getDamageHitsForResolve(player);
     const totalDamage = damageHits.reduce((s, h) => s + h.amount, 0);
     const totals = sumPlayerHits(player);
 
