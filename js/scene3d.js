@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { SkeletonUtils } from 'three/addons/utils/SkeletonUtils.js';
+import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js';
 import { EquipmentManager } from './equipment.js';
 import { BattleVFX, delay } from './vfx.js';
 import {
@@ -208,7 +208,7 @@ export class Scene3D {
         this._loadAnimClips(animType),
       ]);
 
-      const model = SkeletonUtils.clone(gltf.scene);
+      const model = cloneSkinnedModel(gltf.scene);
       this._elevateModel(model);
 
       const mixer = new THREE.AnimationMixer(model);
