@@ -439,7 +439,7 @@ export class Game {
     if (!this.combat.victory) {
       if (result.damageReceived > 0) {
         indicator.textContent = `👹 Boss ${result.bossRound.label}！`;
-        await this.scene3d.playBossAttackTeam(result.damageReceived);
+        await this.scene3d.playBossAttackTeam(result.damageReceived, result.bossRound.type);
         this.combat.teamHp = Math.max(0, this.combat.teamHp - result.damageReceived);
         this._updateTeamHp();
         if (this.combat.teamHp <= 0) this.combat.defeat = true;

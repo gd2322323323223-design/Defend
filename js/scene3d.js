@@ -320,9 +320,9 @@ export class Scene3D {
 
     const action = heroId === 'mage' ? 'cast' : 'attack';
     this._playAnimation(heroId, action, { loop: false });
-    this.vfx.spawnProjectile(hero, enemy, crit ? 0xffd54f : 0xff6b35);
+    this.vfx.spawnClassProjectile(hero, enemy, heroId, crit);
     await delay(220);
-    this.vfx.spawnHitFlash(enemy, crit ? 0xffd54f : 0xff4444);
+    this.vfx.spawnClassHit(enemy, heroId, crit);
     const label = crit ? `-${formatCombatNumber(damage)} 暴擊!` : `-${formatCombatNumber(damage)}`;
     this.vfx.showDamageNumber(enemy, label, crit ? '#ffd54f' : '#ff3333', 0);
     this._shakeModel(enemy);
@@ -359,9 +359,9 @@ export class Scene3D {
       const hit = hits[i];
       const action = heroId === 'mage' ? 'cast' : 'attack';
       this._playAnimation(heroId, action, { loop: false });
-      this.vfx.spawnProjectile(hero, enemy, hit.crit ? 0xffd54f : 0xff6b35);
+      this.vfx.spawnClassProjectile(hero, enemy, heroId, hit.crit);
       await delay(220);
-      this.vfx.spawnStylizedHit(enemy, hit.crit ? 'hit02' : 'hit01');
+      this.vfx.spawnClassHit(enemy, heroId, hit.crit);
       const label = hit.crit
         ? `-${formatCombatNumber(hit.amount)} 暴擊!`
         : `-${formatCombatNumber(hit.amount)}`;
@@ -387,17 +387,18 @@ export class Scene3D {
   }
 
   /** Boss 反擊隊伍 — 一次顯示總傷害 */
-  async playBossAttackTeam(totalDamage) {
+  async playBossAttackTeam(totalDamage, phaseType = 'normal') {
     if (totalDamage <= 0) return;
     const enemy = this.models.enemy;
     const teamTarget = this.getFrontHeroModel() || this.models[this.heroIds[0]];
     if (!enemy || !teamTarget) return;
 
-    this._playAnimation('enemy', 'attack', { loop: false });
-    await delay(200);
-    this.vfx.spawnProjectile(enemy, teamTarget, 0x88ccff);
-    await delay(180);
-    this.vfx.spawnStylizedHit(teamTarget, 'boss');
+    const action = phaseType === 'ultimate' ? 'cast' : 'attack';
+    this._playAnimation('enemy', action, { loop: false });
+    await delay(phaseType === 'ultimate' ? 350 : 200);
+    this.vfx.spawnBossProjectile(enemy, teamTarget, phaseType);
+    await delay(phaseType === 'ultimate' ? 280 : 180);
+    this.vfx.spawnBossHit(teamTarget, phaseType);
     this.vfx.showDamageNumber(teamTarget, `-${Math.round(totalDamage)}`, '#ef5350', 0);
     this._shakeModel(teamTarget);
     this.heroIds.forEach((id) => this._playAnimation(id, 'hit', { loop: false }));
@@ -419,16 +420,33 @@ export class Scene3D {
       );
     }
 
+    const heroModels = [];
     this.heroLabelData.forEach(({ classId, label, playerIndex }) => {
       const model = this.models[classId];
       const el = document.getElementById(`hero-label-${playerIndex}`);
       if (!model || !el) return;
+      heroModels.push(model);
       el.textContent = label;
       const headPos = new THREE.Vector3();
       model.getWorldPosition(headPos);
       headPos.y += 1.42;
       this._placeFloatingEl(el, this._projectToScreen(headPos));
     });
+
+    if (heroModels.length) {
+      const teamCenter = new THREE.Vector3();
+      heroModels.forEach((model) => {
+        const p = new THREE.Vector3();
+        model.getWorldPosition(p);
+        teamCenter.add(p);
+      });
+      teamCenter.divideScalar(heroModels.length);
+      teamCenter.y += 2.05;
+      this._placeFloatingEl(
+        document.getElementById('team-hp-floating'),
+        this._projectToScreen(teamCenter),
+      );
+    }
 
     [0, 1].forEach((i) => {
       const hasLabel = this.heroLabelData.some((h) => h.playerIndex === i);

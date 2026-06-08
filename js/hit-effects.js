@@ -20,12 +20,61 @@ const HIT_PRESETS = {
     streak: 0xffcc00,
     coreScale: 1.35,
   },
+  knight: {
+    core: 0x4fc3f7,
+    glow: 0x29b6f6,
+    star: 0xe1f5fe,
+    streak: 0x81d4fa,
+    coreScale: 1.1,
+  },
+  warrior: {
+    core: 0xff5722,
+    glow: 0xff7043,
+    star: 0xffccbc,
+    streak: 0xff8a65,
+    coreScale: 1.25,
+  },
+  mage: {
+    core: 0xab47bc,
+    glow: 0xce93d8,
+    star: 0xf3e5f5,
+    streak: 0xba68c8,
+    coreScale: 1.3,
+  },
+  assassin: {
+    core: 0x66bb6a,
+    glow: 0x43a047,
+    star: 0xc8e6c9,
+    streak: 0x2e7d32,
+    coreScale: 0.95,
+  },
+  assassin_crit: {
+    core: 0xff1744,
+    glow: 0xd50000,
+    star: 0xff8a80,
+    streak: 0xff5252,
+    coreScale: 1.4,
+  },
   boss: {
     core: 0x88ccff,
     glow: 0x64b5f6,
     star: 0xe3f2fd,
     streak: 0x90caf9,
     coreScale: 1.2,
+  },
+  boss_ultimate: {
+    core: 0xff3d00,
+    glow: 0xff6e40,
+    star: 0xffccbc,
+    streak: 0xffab40,
+    coreScale: 1.65,
+  },
+  boss_lifesteal: {
+    core: 0x7b1fa2,
+    glow: 0x9c27b0,
+    star: 0xce93d8,
+    streak: 0x66bb6a,
+    coreScale: 1.35,
   },
   shield: {
     core: 0x4fc3f7,
@@ -35,6 +84,23 @@ const HIT_PRESETS = {
     coreScale: 0.9,
   },
 };
+
+export function getHitPresetForClass(classId, crit = false) {
+  if (crit && classId === 'assassin') return 'assassin_crit';
+  const map = {
+    knight: 'knight',
+    warrior: 'warrior',
+    mage: 'mage',
+    assassin: 'assassin',
+  };
+  return map[classId] || 'hit01';
+}
+
+export function getHitPresetForBoss(phaseType = 'normal') {
+  if (phaseType === 'ultimate') return 'boss_ultimate';
+  if (phaseType === 'lifesteal') return 'boss_lifesteal';
+  return 'boss';
+}
 
 export function spawnStylizedHit(scene, trackFn, model, presetKey = 'hit01') {
   const preset = HIT_PRESETS[presetKey] || HIT_PRESETS.hit01;

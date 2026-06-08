@@ -104,12 +104,10 @@ body.platform-windows #app {
   pointer-events: none;
 }
 
-/* 隊伍生命 — 畫面頂部置中 */
+/* 隊伍生命 — 跟隨英雄群組上方 */
 .team-hp-floating {
   position: fixed;
-  top: max(8px, env(safe-area-inset-top, 0px));
-  left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -100%);
   z-index: 24;
   display: flex;
   flex-direction: column;
@@ -529,12 +527,13 @@ html, body {
   color: var(--accent-magic);
 }
 
-/* 下半部 — 玩家分屏（緊湊、底部留白） */
+/* 下半部 — 玩家分屏 */
 .players-row {
   flex: 0 0 auto;
   display: flex;
   flex-direction: row;
-  max-height: min(42vh, 320px);
+  min-height: min(46vh, 380px);
+  max-height: min(50vh, 420px);
   padding: 0 10px max(16px, env(safe-area-inset-bottom, 0px));
   gap: 0;
   pointer-events: auto;
@@ -544,7 +543,7 @@ html, body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   padding: 6px 10px 4px;
   border: 3px solid transparent;
   transition: border-color 0.3s, box-shadow 0.3s;
@@ -560,7 +559,7 @@ html, body {
 }
 
 .player-zone-p2 {
-  background: #00e5ff;
+  background: #42a5f5;
   color: #1a1a2e;
 }
 
@@ -622,14 +621,78 @@ html, body {
   justify-content: center;
   gap: 6px;
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   font-weight: 800;
-  font-size: 1rem;
+  font-size: clamp(0.85rem, 2.2vmin, 1rem);
   flex-shrink: 0;
 }
 
 .zone-class-title .class-icon {
   font-size: 1.3rem;
+}
+
+.zone-timer {
+  margin-left: 8px;
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: #e65100;
+  min-width: 1.5em;
+  text-align: center;
+}
+
+.zone-timer.urgent {
+  color: #ff1744;
+  animation: timer-urgent 0.5s infinite;
+}
+
+.zone-matrix-wrap {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.btn-ready-turn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 18px 40px;
+  border: none;
+  border-radius: 28px;
+  font-size: clamp(1.2rem, 3.5vw, 1.55rem);
+  font-weight: 800;
+  cursor: pointer;
+  color: #1a1a2e;
+  background: linear-gradient(135deg, #ffd54f, #ff6b35);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
+  touch-action: manipulation;
+  z-index: 3;
+  white-space: nowrap;
+}
+
+.btn-ready-turn:active {
+  transform: translate(-50%, -50%) scale(0.96);
+}
+
+.player-zone.inactive-zone .zone-matrix-wrap::after {
+  content: '等待回合…';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.player-zone.inactive-zone .word-matrix::after {
+  content: none;
 }
 
 .zone-score {
@@ -644,7 +707,8 @@ html, body {
 .word-matrix {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 5px;
+  grid-template-rows: repeat(3, 1fr);
+  gap: clamp(5px, 1.2vmin, 10px);
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -657,15 +721,14 @@ html, body {
 }
 
 .word-cell {
-  aspect-ratio: 1;
   min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.85);
-  border: 2px solid rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
-  font-size: clamp(2rem, 12vw, 3rem);
+  background: rgba(255, 255, 255, 0.88);
+  border: 2px solid rgba(0, 0, 0, 0.12);
+  border-radius: clamp(6px, 1.2vmin, 10px);
+  font-size: clamp(1.6rem, 6.5vmin, 3rem);
   line-height: 1;
   font-weight: 800;
   color: #1a1a2e;
@@ -778,19 +841,12 @@ html, body {
   }
 
   .players-row {
-    min-height: 260px;
+    min-height: 300px;
+    max-height: min(48vh, 400px);
   }
 
   .player-zone {
     padding: 8px;
-  }
-
-  .word-matrix {
-    gap: 5px;
-  }
-
-  .word-cell {
-    font-size: clamp(1.1rem, 3.2vw, 1.6rem);
   }
 
   .turn-indicator {
@@ -838,7 +894,8 @@ html, body {
   }
 
   .players-row {
-    min-height: 320px;
+    min-height: 340px;
+    max-height: min(50vh, 420px);
   }
 
   .battle-header {
@@ -855,10 +912,6 @@ html, body {
 
   .hp-bar-container {
     max-width: 420px;
-  }
-
-  .word-cell {
-    font-size: clamp(1.3rem, 1.6vw, 1.9rem);
   }
 
   .turn-indicator {
@@ -904,7 +957,8 @@ html, body {
   }
 
   .players-row {
-    min-height: 380px;
+    min-height: 400px;
+    max-height: min(52vh, 460px);
   }
 
   .battle-header {
@@ -927,25 +981,9 @@ html, body {
     font-size: 2.8rem;
   }
 
-  .word-cell {
-    font-size: 1.9rem;
-    border-radius: 10px;
-  }
-
-  .word-matrix {
-    gap: 8px;
-    width: min(100%, 340px);
-    margin: 0 auto;
-  }
-
   .player-zone {
     padding: 10px 16px 8px;
-    align-items: center;
-  }
-
-  .zone-class-title {
-    max-width: 340px;
-    width: 100%;
+    align-items: stretch;
   }
 
   .turn-indicator {
@@ -969,7 +1007,8 @@ html, body {
   }
 
   .players-row {
-    max-height: min(40vh, 280px);
+    min-height: 260px;
+    max-height: min(44vh, 340px);
     padding-bottom: 12px;
   }
 
@@ -986,7 +1025,4 @@ html, body {
     text-align: center;
   }
 
-  .word-matrix {
-    gap: 4px;
-  }
 }
