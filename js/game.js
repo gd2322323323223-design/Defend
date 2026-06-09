@@ -3,17 +3,18 @@
  */
 
 import { WordMatrix } from '@/matrix.js';
-import { CLASSES, ENEMY, getRandomTaunt } from '@/ai-taunt.js';
+import { CLASSES, ENEMY, RAGE_HERO, getRandomTaunt } from '@/ai-taunt.js';
 import {
   computeBossPhase,
   applyBossPhaseResult,
+  applySoloRoundBonuses,
   CombatState,
   formatCombatNumber,
   getBossRoundInfo,
   getDamageHitsForResolve,
+  getShieldHitsForResolve,
   getRoundShieldTotal,
   ROUND_DURATION,
-  TEAM_MAX_HP,
   sumPlayerHits,
 } from '@/combat.js';
 import { assignFormationSlots } from '@/models-config.js';
@@ -61,6 +62,11 @@ export class Game {
 
   _selectMode(mode) {
     this.mode = mode;
+    if (mode === 'single') {
+      this.selectedClasses = [RAGE_HERO];
+      this._startTaunt();
+      return;
+    }
     this.selectedClasses = [];
     this._renderClassSelection();
     this._showScreen('screen-class');
@@ -117,6 +123,7 @@ export class Game {
   }
 
   _getPhaseLabel(cls) {
+    if (cls.role === 'rage') return '狂暴';
     if (cls.role === 'tank') return '防禦';
     if (cls.role === 'dps') return '攻擊';
     return '出擊';
@@ -153,7 +160,7 @@ export class Game {
   }
 
   async _startBattle() {
-    this.combat.reset();
+    this.combat.reset(this.mode);
     this.selectedClasses.forEach((cls) => this.combat.addPlayer(cls));
 
     const formation = assignFormationSlots(this.selectedClasses);
@@ -207,13 +214,20 @@ export class Game {
     const teamHp = document.getElementById('team-hp-floating');
     if (teamHp) teamHp.classList.remove('hidden');
 
+    document.getElementById('player1-zone').classList.remove('hidden');
+    const cls0 = this.selectedClasses[0];
+    if (cls0) {
+      document.getElementById('p1-class-icon').textContent = cls0.icon;
+      document.getElementById('p1-class-name').textContent = cls0.name;
+    }
+
     if (this.mode === 'dual') {
-      document.getElementById('player1-zone').classList.remove('hidden');
       document.getElementById('player2-zone').classList.remove('hidden');
-      this.selectedClasses.forEach((cls, i) => {
-        document.getElementById(`p${i + 1}-class-icon`).textContent = cls.icon;
-        document.getElementById(`p${i + 1}-class-name`).textContent = cls.name;
-      });
+      const cls1 = this.selectedClasses[1];
+      if (cls1) {
+        document.getElementById('p2-class-icon').textContent = cls1.icon;
+        document.getElementById('p2-class-name').textContent = cls1.name;
+      }
     }
 
     this._updateHpBar();
@@ -289,7 +303,11 @@ export class Game {
 
     const indicator = document.getElementById('turn-indicator');
     indicator.classList.remove('hidden');
-    indicator.textContent = `第 ${this.combat.round} 回合 — ${this._getPhaseLabel(cls)}階段 — ${cls.icon} ${cls.name}`;
+    if (this.combat.isSolo) {
+      indicator.textContent = `第 ${this.combat.round} 回合 — ${cls.icon} 看到「火」字就瘋狂點擊！`;
+    } else {
+      indicator.textContent = `第 ${this.combat.round} 回合 — ${this._getPhaseLabel(cls)}階段 — ${cls.icon} ${cls.name}`;
+    }
 
     const matrixEl = document.getElementById(`matrix-p${playerIdx + 1}`);
     matrixEl.innerHTML = '';
@@ -299,7 +317,9 @@ export class Game {
     readyBtn.classList.remove('hidden');
     readyBtn.onclick = () => this._onPlayerReady(playerIdx, cls);
 
-    if (cls.role === 'tank') {
+    if (this.combat.isSolo) {
+      this.scene3d.playHeroAction(cls.id, 'attack');
+    } else if (cls.role === 'tank') {
       this.scene3d.playHeroAction(cls.id, 'block');
     } else {
       this.scene3d.playHeroAction(cls.id, cls.id === 'assassin' ? 'attack' : 'cast');
@@ -353,6 +373,13 @@ export class Game {
 
     const scoreEl = document.getElementById(`p${playerIdx + 1}-score`);
     scoreEl.textContent = `答對: ${player.roundScore}`;
+
+    if (this.combat.isSolo) {
+      this._updateRoundShield();
+      const action = player.roundScore % 2 === 0 ? 'attack' : 'block';
+      this.scene3d.playHeroAction(cls.id, action);
+      return;
+    }
 
     if (cls.role === 'tank' || cls.role === 'hybrid') {
       this._updateRoundShield();
@@ -430,9 +457,25 @@ export class Game {
     indicator.classList.add('hidden');
     await this._showRoundScorePopup(player.roundScore || 0);
 
-    const damageHits = getDamageHitsForResolve(player);
+    if (this.combat.isSolo) {
+      const bonuses = applySoloRoundBonuses(player);
+      if (bonuses.mageCrit) {
+        indicator.classList.remove('hidden');
+        indicator.textContent = '🔮 法師暴擊！本回合傷害 ×1.5！';
+        await delay(700);
+      }
+      if (bonuses.holyShield) {
+        indicator.classList.remove('hidden');
+        indicator.textContent = '✨ 聖光大盾！本回合護盾 ×1.5！';
+        await delay(700);
+      }
+    }
+
+    const isSolo = this.combat.isSolo;
+    const damageHits = getDamageHitsForResolve(player, isSolo);
+    const shieldHits = getShieldHitsForResolve(player, isSolo);
     const totalDamage = damageHits.reduce((s, h) => s + h.amount, 0);
-    const totals = sumPlayerHits(player);
+    const totalShield = shieldHits.reduce((s, h) => s + h.amount, 0);
 
     if (damageHits.length) {
       indicator.classList.remove('hidden');
@@ -448,11 +491,11 @@ export class Game {
       if (this.combat.victory) return;
     }
 
-    if (player.shieldHits.length) {
+    if (shieldHits.length) {
       indicator.classList.remove('hidden');
       indicator.textContent = `🛡️ ${cls.icon} ${cls.name} 防禦！`;
-      await this.scene3d.playHeroShieldHits(cls.id, player.shieldHits);
-      this.combat.battleTotalShield += totals.shield;
+      await this.scene3d.playHeroShieldHits(cls.id, shieldHits);
+      this.combat.battleTotalShield += totalShield;
       this._updateRoundShield();
     }
   }
@@ -461,7 +504,7 @@ export class Game {
     const indicator = document.getElementById('turn-indicator');
     indicator.classList.remove('hidden');
 
-    const preview = getBossRoundInfo(this.combat.round);
+    const preview = getBossRoundInfo(this.combat.round, this.combat.isSolo);
     let bossHint = `👹 Boss 準備 ${preview.label}（${preview.rawDamage} 傷）`;
     if (this.combat.bossIsDebuffed) bossHint += ' — 寒冰凍結生效，傷害減半！';
     indicator.textContent = bossHint;

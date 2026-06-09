@@ -4,12 +4,21 @@
 
 import { ENEMY } from '@/ai-taunt.js';
 
-/** 全隊英雄總血量 */
+/** 雙人模式 — 全隊英雄總血量 */
 export const HERO_HP = 30;
 export const TEAM_MAX_HP = HERO_HP;
 
-/** Boss 初始血量 */
+/** 雙人模式 — Boss 初始血量 */
 export const BOSS_HP = 100;
+
+/** 單人狂暴大英雄 */
+export const SOLO_HERO_HP = 25;
+export const SOLO_BOSS_HP = 65;
+export const SOLO_DAMAGE_PER_HIT = 1.4;
+export const SOLO_SHIELD_PER_HIT = 1.0;
+export const SOLO_BONUS_THRESHOLD = 6;
+export const SOLO_BONUS_RATE = 0.3;
+export const SOLO_BONUS_MULT = 1.5;
 
 export const ROUND_DURATION = 10;
 
@@ -36,8 +45,18 @@ export function formatCombatNumber(value) {
   return n.toFixed(1);
 }
 
+function rollHitRageHero() {
+  return {
+    damage: SOLO_DAMAGE_PER_HIT,
+    shield: SOLO_SHIELD_PER_HIT,
+    damageDisplay: SOLO_DAMAGE_PER_HIT,
+    shieldDisplay: SOLO_SHIELD_PER_HIT,
+  };
+}
+
 /** 每次答對獨立產生一筆命中 */
 function rollHit(classId) {
+  if (classId === 'rage_hero') return rollHitRageHero();
   switch (classId) {
     case 'knight':
       return { shield: 1.5, shieldDisplay: 1.5 };
@@ -56,8 +75,18 @@ function rollHit(classId) {
   }
 }
 
-/** Boss 三回合循環：普通 12 → 吸血 10 → 蓄力 22 */
-export function getBossRoundInfo(bossRound) {
+/** Boss 三回合循環 */
+export function getBossRoundInfo(bossRound, isSolo = false) {
+  if (isSolo) {
+    if (bossRound % 3 === 0) {
+      return { type: 'ultimate', rawDamage: 18, label: '蓄力重擊', sucking: false };
+    }
+    if (bossRound % 3 === 2) {
+      return { type: 'lifesteal', rawDamage: 8, label: '吸血撕咬', sucking: true };
+    }
+    return { type: 'normal', rawDamage: 10, label: '普通攻擊', sucking: false };
+  }
+
   if (bossRound % 3 === 0) {
     return { type: 'ultimate', rawDamage: 22, label: '蓄力重擊', sucking: false };
   }
@@ -78,22 +107,77 @@ function sumPlayerHits(player) {
   };
 }
 
-/** 結算用傷害命中列表（刺客暴擊已在每次答對時獨立判定） */
-export function getDamageHitsForResolve(player) {
-  return (player.damageHits || []).map((h) => ({ ...h }));
+/** 單人模式 ≥6 分隨機加成 */
+export function applySoloRoundBonuses(player) {
+  const bonuses = {
+    damageMult: 1,
+    shieldMult: 1,
+    mageCrit: false,
+    holyShield: false,
+  };
+  player.soloBonuses = bonuses;
+
+  if ((player.roundScore || 0) < SOLO_BONUS_THRESHOLD) return bonuses;
+
+  if (Math.random() < SOLO_BONUS_RATE) {
+    bonuses.mageCrit = true;
+    bonuses.damageMult = SOLO_BONUS_MULT;
+  }
+  if (Math.random() < SOLO_BONUS_RATE) {
+    bonuses.holyShield = true;
+    bonuses.shieldMult = SOLO_BONUS_MULT;
+  }
+  return bonuses;
+}
+
+function applyMultToHits(hits, mult, critFlag = false) {
+  if (mult <= 1) return hits.map((h) => ({ ...h }));
+  return hits.map((h) => ({
+    ...h,
+    amount: h.amount * mult,
+    display: h.amount * mult,
+    crit: critFlag || h.crit,
+  }));
+}
+
+/** 結算用傷害命中列表 */
+export function getDamageHitsForResolve(player, isSolo = false) {
+  const hits = (player.damageHits || []).map((h) => ({ ...h }));
+  if (isSolo && player.soloBonuses?.damageMult > 1) {
+    return applyMultToHits(hits, player.soloBonuses.damageMult, player.soloBonuses.mageCrit);
+  }
+  return hits;
+}
+
+/** 結算用護盾命中列表 */
+export function getShieldHitsForResolve(player, isSolo = false) {
+  const hits = (player.shieldHits || []).map((h) => ({ ...h }));
+  if (isSolo && player.soloBonuses?.shieldMult > 1) {
+    return applyMultToHits(hits, player.soloBonuses.shieldMult);
+  }
+  return hits;
 }
 
 export { sumPlayerHits };
 
+function getPlayerShieldTotal(player, isSolo) {
+  let shield = sumHits(player.shieldHits || [], 'amount');
+  if (isSolo && player.soloBonuses?.shieldMult > 1) {
+    shield *= player.soloBonuses.shieldMult;
+  }
+  return shield;
+}
+
 export function getRoundShieldTotal(combat) {
   const raw = combat.players.reduce(
-    (s, p) => s + sumHits(p.shieldHits || [], 'amount'),
+    (s, p) => s + getPlayerShieldTotal(p, combat.isSolo),
     0,
   );
   return Math.max(0, raw - (combat.roundShieldPenalty || 0));
 }
 
-function checkMageDebuff(players) {
+function checkMageDebuff(players, isSolo) {
+  if (isSolo) return false;
   for (const p of players) {
     if (p.class?.id === 'mage' && (p.roundScore || 0) >= MAGE_DEBUFF_THRESHOLD
       && Math.random() < MAGE_DEBUFF_RATE) {
@@ -124,9 +208,9 @@ export function computeBattleResult(combat, bossRound) {
 
   const totalDamage = players.reduce((s, p) => s + p.damage, 0);
   const totalShield = players.reduce((s, p) => s + p.shield, 0);
-  const nextBossDebuff = checkMageDebuff(combat.players);
+  const nextBossDebuff = checkMageDebuff(combat.players, combat.isSolo);
 
-  const roundInfo = getBossRoundInfo(bossRound);
+  const roundInfo = getBossRoundInfo(bossRound, combat.isSolo);
   let bossRawDamage = roundInfo.rawDamage;
   const bossDebuffApplied = combat.bossIsDebuffed;
 
@@ -163,9 +247,9 @@ export function computeBossPhase(combat, bossRound) {
     totalShield -= SHIELD_CONVERT_TO_DAMAGE;
   }
 
-  const nextBossDebuff = checkMageDebuff(combat.players);
+  const nextBossDebuff = checkMageDebuff(combat.players, combat.isSolo);
 
-  const roundInfo = getBossRoundInfo(bossRound);
+  const roundInfo = getBossRoundInfo(bossRound, combat.isSolo);
   let bossRawDamage = roundInfo.rawDamage;
   const bossDebuffApplied = combat.bossIsDebuffed;
 
@@ -197,14 +281,25 @@ export function applyBossPhaseResult(combat, result) {
 
 export class CombatState {
   constructor() {
-    this.reset();
+    this.reset('dual');
   }
 
-  reset() {
-    this.enemyHp = ENEMY.maxHp;
-    this.enemyMaxHp = ENEMY.maxHp;
-    this.teamHp = TEAM_MAX_HP;
-    this.teamMaxHp = TEAM_MAX_HP;
+  reset(gameMode = 'dual') {
+    this.gameMode = gameMode;
+    this.isSolo = gameMode === 'single';
+
+    if (this.isSolo) {
+      this.enemyHp = SOLO_BOSS_HP;
+      this.enemyMaxHp = SOLO_BOSS_HP;
+      this.teamHp = SOLO_HERO_HP;
+      this.teamMaxHp = SOLO_HERO_HP;
+    } else {
+      this.enemyHp = ENEMY.maxHp;
+      this.enemyMaxHp = ENEMY.maxHp;
+      this.teamHp = TEAM_MAX_HP;
+      this.teamMaxHp = TEAM_MAX_HP;
+    }
+
     this.players = [];
     this.round = 0;
     this.bossIsDebuffed = false;
@@ -222,6 +317,7 @@ export class CombatState {
       p.roundScore = 0;
       p.damageHits = [];
       p.shieldHits = [];
+      p.soloBonuses = null;
     });
   }
 
@@ -236,6 +332,7 @@ export class CombatState {
       correctCount: 0,
       damageHits: [],
       shieldHits: [],
+      soloBonuses: null,
     });
   }
 

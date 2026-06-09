@@ -92,6 +92,7 @@ export function getHitPresetForClass(classId, crit = false) {
     warrior: 'warrior',
     mage: 'mage',
     assassin: 'assassin',
+    rage_hero: 'warrior',
   };
   return map[classId] || 'hit01';
 }

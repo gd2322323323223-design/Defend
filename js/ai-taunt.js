@@ -28,6 +28,19 @@ export function getEnemyAttackTaunt() {
   return ENEMY_ATTACK_TAUNTS[Math.floor(Math.random() * ENEMY_ATTACK_TAUNTS.length)];
 }
 
+/** 單人模式 — 狂暴大英雄（全能自動融合傷害+護盾） */
+export const RAGE_HERO = {
+  id: 'rage_hero',
+  name: '狂暴大英雄',
+  icon: '⚡',
+  role: 'rage',
+  desc: '每點分數 = 1.4 傷害 + 1.0 護盾',
+  modelPath: `${HEROES}/Barbarian.glb`,
+  defaultEquipment: 'axe_2handed',
+  animAttack: 'attack',
+  animIdle: 'idle',
+};
+
 export const CLASSES = {
   knight: {
     id: 'knight',

@@ -14,6 +14,7 @@ const CLASS_PROJECTILE = {
   warrior: { color: 0xff5722, glow: 0xff8a65, size: 0.12, speed: 240, shape: 'slash' },
   mage: { color: 0xab47bc, glow: 0xce93d8, size: 0.16, speed: 320, shape: 'orb' },
   assassin: { color: 0x43a047, glow: 0x66bb6a, size: 0.08, speed: 180, shape: 'dart' },
+  rage_hero: { color: 0xffd54f, glow: 0xff6b35, size: 0.14, speed: 260, shape: 'slash' },
 };
 
 const BOSS_PROJECTILE = {
