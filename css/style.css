@@ -298,13 +298,41 @@ html, body {
   transform: none;
 }
 
-/* 職業選擇 */
+/* 職業選擇 — 固定 2×2 */
+#screen-class {
+  justify-content: flex-start;
+  padding-top: max(12px, env(safe-area-inset-top));
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#screen-class h2 {
+  font-size: clamp(1.15rem, 4vw, 1.55rem);
+  margin-bottom: 6px;
+}
+
+#screen-class .btn-primary {
+  margin-top: 8px;
+  flex-shrink: 0;
+}
+
 .class-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  margin: 24px 0;
-  width: min(480px, 90vw);
+  gap: clamp(8px, 2vw, 14px);
+  margin: 10px 0;
+  width: min(520px, 94vw);
+  position: relative;
+}
+
+.class-preview-shared {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .class-select-hint {
@@ -319,10 +347,12 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  position: relative;
+  z-index: 1;
   background: var(--bg-panel);
   border: 2px solid transparent;
   border-radius: var(--radius);
-  padding: 12px 14px 16px;
+  padding: 8px 10px 12px;
   text-align: center;
   cursor: pointer;
   transition: border-color 0.2s, transform 0.15s;
@@ -331,18 +361,11 @@ html, body {
 
 .class-preview-wrap {
   width: 100%;
-  height: clamp(100px, 24vw, 140px);
-  margin-bottom: 10px;
+  height: clamp(72px, 20vw, 108px);
+  margin-bottom: 8px;
   border-radius: 10px;
-  overflow: hidden;
   background: linear-gradient(180deg, rgba(30, 36, 56, 0.9), rgba(18, 24, 43, 0.95));
   border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.class-preview-canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
 }
 
 .class-card.selected {
@@ -354,18 +377,18 @@ html, body {
 .class-card .name {
   display: block;
   width: 100%;
-  font-size: 1.2rem;
+  font-size: clamp(0.95rem, 3vw, 1.15rem);
   font-weight: 800;
   line-height: 1.3;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .class-card .desc {
   display: block;
   width: 100%;
-  font-size: 0.78rem;
+  font-size: clamp(0.65rem, 2.1vw, 0.76rem);
   color: var(--text-dim);
-  line-height: 1.45;
+  line-height: 1.4;
 }
 
 /* AI 叫陣對話框 */
@@ -923,8 +946,12 @@ html, body {
   }
 
   .class-grid {
-    width: min(560px, 92vw);
-    gap: 12px;
+    width: min(500px, 92vw);
+    gap: 10px;
+  }
+
+  .class-preview-wrap {
+    height: clamp(68px, 18vw, 96px);
   }
 
   .boss-zone {
@@ -976,8 +1003,7 @@ html, body {
   }
 
   .class-grid {
-    width: min(720px, 85vw);
-    grid-template-columns: repeat(4, 1fr);
+    width: min(560px, 70vw);
   }
 
   .boss-zone {

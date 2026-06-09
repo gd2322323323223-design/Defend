@@ -81,6 +81,7 @@ export class Game {
       card.className = 'class-card';
       card.dataset.classId = cls.id;
       card.innerHTML = `
+        <div class="class-preview-wrap"></div>
         <span class="name">${cls.name}</span>
         <span class="desc">${cls.desc}</span>
       `;
