@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>語文防衛戰 — Defend</title>
-  <link rel="stylesheet" href="css/style.css?v=2.0.1">
+  <link rel="stylesheet" href="css/style.css?v=2.1.0">
 </head>
 <body>
-  <div id="version-badge" class="version-badge" title="遊戲版本">v2.0.1</div>
+  <div id="version-badge" class="version-badge" title="遊戲版本">v2.1.0</div>
   <div id="app">
     <div id="game-shell">
     <!-- 3D 場景背景 -->
@@ -86,6 +86,7 @@
     <div id="boss-head-stack" class="boss-head-stack hidden">
       <div id="boss-name-floating" class="boss-name-floating">👹 骷髏魔王</div>
       <div id="boss-hp-floating" class="boss-hp-floating">
+        <span id="boss-debuff-icon" class="boss-debuff-icon hidden" title="攻擊減半">⬇️</span>
         <div class="hp-bar-container boss-floating-bar">
           <div id="enemy-hp-bar" class="hp-bar"></div>
           <span id="enemy-hp-text" class="hp-text">100 / 100</span>
@@ -111,6 +112,10 @@
 
     <!-- 結算畫面 -->
     <section id="screen-result" class="screen">
+      <canvas id="victory-confetti" class="victory-confetti hidden"></canvas>
+      <div id="victory-heroes-wrap" class="victory-heroes-wrap hidden">
+        <canvas id="victory-heroes-canvas"></canvas>
+      </div>
       <h2 id="result-title">戰鬥結算</h2>
       <div id="result-stats" class="result-stats"></div>
       <div id="equipment-unlock" class="equipment-unlock hidden">
@@ -127,20 +132,21 @@
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
       "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-      "@/version.js": "./js/version.js?v=2.0.1",
-      "@/game.js": "./js/game.js?v=2.0.1",
-      "@/matrix.js": "./js/matrix.js?v=2.0.1",
-      "@/ai-taunt.js": "./js/ai-taunt.js?v=2.0.1",
-      "@/combat.js": "./js/combat.js?v=2.0.1",
-      "@/models-config.js": "./js/models-config.js?v=2.0.1",
-      "@/scene3d.js": "./js/scene3d.js?v=2.0.1",
-      "@/vfx.js": "./js/vfx.js?v=2.0.1",
-      "@/hit-effects.js": "./js/hit-effects.js?v=2.0.1",
-      "@/equipment.js": "./js/equipment.js?v=2.0.1",
-      "@/class-preview.js": "./js/class-preview.js?v=2.0.1"
+      "@/version.js": "./js/version.js?v=2.1.0",
+      "@/game.js": "./js/game.js?v=2.1.0",
+      "@/matrix.js": "./js/matrix.js?v=2.1.0",
+      "@/ai-taunt.js": "./js/ai-taunt.js?v=2.1.0",
+      "@/combat.js": "./js/combat.js?v=2.1.0",
+      "@/models-config.js": "./js/models-config.js?v=2.1.0",
+      "@/scene3d.js": "./js/scene3d.js?v=2.1.0",
+      "@/vfx.js": "./js/vfx.js?v=2.1.0",
+      "@/hit-effects.js": "./js/hit-effects.js?v=2.1.0",
+      "@/equipment.js": "./js/equipment.js?v=2.1.0",
+      "@/class-preview.js": "./js/class-preview.js?v=2.1.0",
+      "@/victory-display.js": "./js/victory-display.js?v=2.1.0"
     }
   }
   </script>
-  <script type="module" src="js/main.js?v=2.0.1"></script>
+  <script type="module" src="js/main.js?v=2.1.0"></script>
 </body>
 </html>

@@ -50,7 +50,6 @@ function elevateModel(model) {
   });
 }
 
-/** 鏡頭在 +Z，模型正面朝玩家 */
 const FACE_CAMERA_Y = 0;
 
 export class ClassPreviewManager {
@@ -64,6 +63,7 @@ export class ClassPreviewManager {
     this.canvas = null;
     this.renderer = null;
     this.lowPower = isLowPowerDevice();
+    this._active = false;
   }
 
   async mountAll(classes) {
@@ -91,7 +91,9 @@ export class ClassPreviewManager {
       await this._mountOne(classes[i], i, clips);
     }
 
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     this._resizeCanvas();
+    this._active = true;
     this._startLoop();
     this._observeResize();
   }
@@ -100,12 +102,8 @@ export class ClassPreviewManager {
     const card = document.querySelector(`.class-card[data-class-id="${cls.id}"]`);
     if (!card) return;
 
-    let wrap = card.querySelector('.class-preview-wrap');
-    if (!wrap) {
-      wrap = document.createElement('div');
-      wrap.className = 'class-preview-wrap';
-      card.insertBefore(wrap, card.firstChild);
-    }
+    const wrap = card.querySelector('.class-preview-wrap');
+    if (!wrap) return;
 
     const scene = new THREE.Scene();
     scene.add(new THREE.AmbientLight(0x8899bb, 0.95));
@@ -158,9 +156,8 @@ export class ClassPreviewManager {
 
   _resizeCanvas() {
     if (!this.grid || !this.renderer) return;
-    const w = this.grid.clientWidth;
-    const h = this.grid.clientHeight;
-    if (w <= 0 || h <= 0) return;
+    const w = Math.max(this.grid.clientWidth, 1);
+    const h = Math.max(this.grid.clientHeight, 1);
     this.renderer.setSize(w, h, false);
   }
 
@@ -171,22 +168,25 @@ export class ClassPreviewManager {
   }
 
   _renderAll() {
-    if (!this.renderer || !this.grid) return;
+    if (!this.renderer || !this.grid || !this.canvas) return;
 
     const dpr = this.renderer.getPixelRatio();
     const canvasRect = this.canvas.getBoundingClientRect();
+    if (canvasRect.width <= 0 || canvasRect.height <= 0) return;
 
     this.renderer.setScissorTest(true);
-    this.renderer.clear();
+    this.renderer.clear(true, true, true);
 
     this.instances.forEach((inst) => {
       const rect = inst.wrap.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return;
+      if (rect.width <= 1 || rect.height <= 1) return;
 
-      const x = Math.round((rect.left - canvasRect.left) * dpr);
-      const y = Math.round((canvasRect.bottom - rect.bottom) * dpr);
-      const w = Math.round(rect.width * dpr);
-      const h = Math.round(rect.height * dpr);
+      const x = Math.floor((rect.left - canvasRect.left) * dpr);
+      const y = Math.floor((canvasRect.bottom - rect.bottom) * dpr);
+      const w = Math.ceil(rect.width * dpr);
+      const h = Math.ceil(rect.height * dpr);
+
+      if (w <= 0 || h <= 0) return;
 
       this.renderer.setViewport(x, y, w, h);
       this.renderer.setScissor(x, y, w, h);
@@ -203,6 +203,7 @@ export class ClassPreviewManager {
     if (this.raf) cancelAnimationFrame(this.raf);
     this.clock.start();
     const tick = () => {
+      if (!this._active) return;
       const delta = this.clock.getDelta();
       const t = this.clock.getElapsedTime();
 
@@ -221,6 +222,7 @@ export class ClassPreviewManager {
   }
 
   dispose() {
+    this._active = false;
     if (this.raf) {
       cancelAnimationFrame(this.raf);
       this.raf = null;

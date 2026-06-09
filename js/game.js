@@ -19,6 +19,7 @@ import {
 import { assignFormationSlots } from '@/models-config.js';
 import { Scene3D } from '@/scene3d.js';
 import { ClassPreviewManager } from '@/class-preview.js';
+import { VictoryDisplay } from '@/victory-display.js';
 import { delay } from '@/vfx.js';
 
 export class Game {
@@ -34,7 +35,9 @@ export class Game {
     this.formationSlots = [];
     this.scene3d = null;
     this.classPreviews = new ClassPreviewManager();
+    this.victoryDisplay = new VictoryDisplay();
     this._resolving = false;
+    this._victoryPlaying = false;
     this._activePlayerIdx = null;
     this._tauntInProgress = false;
     this._bindUI();
@@ -385,8 +388,7 @@ export class Game {
     if (playerIdx !== undefined) {
       await this._resolvePlayerCombat(playerIdx);
       if (this.combat.victory) {
-        await delay(300);
-        this._showVictory();
+        await this._handleVictory();
         return;
       }
     }
@@ -508,15 +510,16 @@ export class Game {
     }
 
     applyBossPhaseResult(this.combat, result);
+    this._updateBossDebuffIcon();
 
     if (result.debuffTriggered) {
       indicator.textContent = '🔮 法師寒冰凍結！下回合 Boss 傷害減半';
+      this._updateBossDebuffIcon();
       await delay(800);
     }
 
     if (this.combat.victory) {
-      await delay(300);
-      this._showVictory();
+      await this._handleVictory();
       return;
     }
 
@@ -542,6 +545,13 @@ export class Game {
     document.getElementById('enemy-hp-bar').style.width = `${pct}%`;
     document.getElementById('enemy-hp-text').textContent =
       `${Math.round(this.combat.enemyHp)} / ${this.combat.enemyMaxHp}`;
+    this._updateBossDebuffIcon();
+  }
+
+  _updateBossDebuffIcon() {
+    const icon = document.getElementById('boss-debuff-icon');
+    if (!icon) return;
+    icon.classList.toggle('hidden', !this.combat.bossIsDebuffed);
   }
 
   _updateTeamHp() {
@@ -553,9 +563,22 @@ export class Game {
     text.textContent = `${Math.round(this.combat.teamHp)} / ${this.combat.teamMaxHp}`;
   }
 
+  async _handleVictory() {
+    if (this._victoryPlaying) return;
+    this._victoryPlaying = true;
+
+    const indicator = document.getElementById('turn-indicator');
+    indicator.classList.remove('hidden');
+    indicator.textContent = '👹 「啊！不！我會回來的！」';
+    await delay(900);
+
+    await this.scene3d.playBossDefeatSequence();
+    await this._showVictory();
+  }
+
   async _showVictory() {
     document.getElementById('turn-indicator').classList.add('hidden');
-    this.scene3d.playEnemyDeath();
+
     const heroClass = this.selectedClasses.find((c) => c.role === 'dps') || this.selectedClasses[0];
     await this.scene3d.unlockEquipment(heroClass.id);
 
@@ -568,9 +591,11 @@ export class Game {
       <p>答對字數: ${this.combat.players.map((p) => p.correctCount).join(' / ')}</p>
     `;
     this._showScreen('screen-result');
+    await this.victoryDisplay.show(this.selectedClasses);
   }
 
   _showDefeat() {
+    this.victoryDisplay.dispose();
     document.getElementById('turn-indicator').classList.add('hidden');
     document.getElementById('equipment-unlock').classList.add('hidden');
     document.getElementById('result-title').textContent = '💀 戰敗…';
@@ -584,6 +609,8 @@ export class Game {
 
   _goToMenu() {
     this._cleanupMatrices();
+    this.victoryDisplay.dispose();
+    this._victoryPlaying = false;
     this.combat.reset();
     this.selectedClasses = [];
     this.turnOrder = [];

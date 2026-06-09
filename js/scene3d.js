@@ -513,6 +513,42 @@ export class Scene3D {
     });
   }
 
+  /** Boss 被擊敗 — 慢動作倒地約 5 秒 */
+  async playBossDefeatSequence() {
+    const anim = this.animations.enemy;
+    const enemy = this.models.enemy;
+    if (!anim || !enemy) {
+      await delay(5000);
+      return;
+    }
+
+    const clip = this._findClip(anim.clips, 'death');
+    anim.mixer.timeScale = 0.32;
+
+    if (clip) {
+      const action = anim.mixer.clipAction(clip);
+      action.reset();
+      action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;
+      action.fadeIn(0.15).play();
+
+      await new Promise((resolve) => {
+        const onDone = (e) => {
+          if (e.action === action) {
+            anim.mixer.removeEventListener('finished', onDone);
+            resolve();
+          }
+        };
+        anim.mixer.addEventListener('finished', onDone);
+        setTimeout(resolve, 5200);
+      });
+    } else {
+      await delay(5000);
+    }
+
+    anim.mixer.timeScale = 1;
+  }
+
   playEnemyDeath() {
     return this._playAnimation('enemy', 'death', { loop: false });
   }
