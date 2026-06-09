@@ -1,5 +1,5 @@
 /**
- * 職業選擇畫面 — 單一 WebGL 渲染四格預覽（避免 iPad 多 context 崩潰）
+ * 職業選擇畫面 — 每格獨立 canvas 預覽（穩定顯示）
  */
 
 import * as THREE from 'three';
@@ -11,10 +11,6 @@ import { ANIMATION_FILES, ANIM_MAP } from '@/models-config.js';
 const gltfCache = new Map();
 const loader = new GLTFLoader();
 let heroAnimClips = null;
-
-function isTouchDevice() {
-  return navigator.maxTouchPoints > 0;
-}
 
 async function fetchGLTF(path) {
   if (gltfCache.has(path)) return gltfCache.get(path);
@@ -58,32 +54,11 @@ export class ClassPreviewManager {
     this.raf = null;
     this._resizeObserver = null;
     this.equipmentManager = new EquipmentManager();
-    this.grid = null;
-    this.canvas = null;
-    this.renderer = null;
-    this.isTouch = isTouchDevice();
     this._active = false;
   }
 
   async mountAll(classes) {
     this.dispose();
-    this.grid = document.getElementById('class-grid');
-    if (!this.grid) return;
-
-    this.canvas = document.createElement('canvas');
-    this.canvas.className = 'class-preview-shared';
-    this.grid.appendChild(this.canvas);
-
-    this.renderer = new THREE.WebGLRenderer({
-      canvas: this.canvas,
-      alpha: true,
-      antialias: true,
-      powerPreference: 'high-performance',
-    });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    this.renderer.setScissorTest(true);
-    this.renderer.setClearColor(0x000000, 0);
-
     const clips = await loadHeroAnimClips();
 
     for (let i = 0; i < classes.length; i++) {
@@ -91,7 +66,7 @@ export class ClassPreviewManager {
     }
 
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    this._resizeCanvas();
+    this.instances.forEach((inst) => this._resizeInstance(inst));
     this._active = true;
     this._startLoop();
     this._observeResize();
@@ -103,6 +78,18 @@ export class ClassPreviewManager {
 
     const wrap = card.querySelector('.class-preview-wrap');
     if (!wrap) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.className = 'class-preview-canvas';
+    wrap.appendChild(canvas);
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      alpha: true,
+      antialias: true,
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setClearColor(0x000000, 0);
 
     const scene = new THREE.Scene();
     scene.add(new THREE.AmbientLight(0x8899bb, 0.95));
@@ -118,7 +105,7 @@ export class ClassPreviewManager {
       const gltf = await fetchGLTF(cls.modelPath);
       const model = cloneSkinnedModel(gltf.scene);
       elevateModel(model);
-      model.scale.setScalar(0.54);
+      model.scale.setScalar(0.52);
       model.position.y = 0.08;
       model.rotation.y = FACE_CAMERA_Y;
       scene.add(model);
@@ -139,6 +126,7 @@ export class ClassPreviewManager {
       }
 
       this.instances.push({
+        renderer,
         scene,
         camera,
         model,
@@ -148,52 +136,26 @@ export class ClassPreviewManager {
       });
     } catch (err) {
       console.warn(`職業預覽載入失敗: ${cls.modelPath}`, err);
+      canvas.remove();
+      renderer.dispose();
     }
   }
 
-  _resizeCanvas() {
-    if (!this.grid || !this.renderer) return;
-    const w = Math.max(this.grid.clientWidth, 1);
-    const h = Math.max(this.grid.clientHeight, 1);
-    this.renderer.setSize(w, h, false);
+  _resizeInstance(inst) {
+    const { wrap, renderer, camera } = inst;
+    const w = Math.max(wrap.clientWidth, 1);
+    const h = Math.max(wrap.clientHeight, 1);
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
   }
 
   _observeResize() {
     if (this._resizeObserver) this._resizeObserver.disconnect();
-    this._resizeObserver = new ResizeObserver(() => this._resizeCanvas());
-    this._resizeObserver.observe(this.grid);
-  }
-
-  _renderAll() {
-    if (!this.renderer || !this.grid || !this.canvas) return;
-
-    const dpr = this.renderer.getPixelRatio();
-    const canvasRect = this.canvas.getBoundingClientRect();
-    if (canvasRect.width <= 0 || canvasRect.height <= 0) return;
-
-    this.renderer.setScissorTest(true);
-    this.renderer.clear(true, true, true);
-
-    this.instances.forEach((inst) => {
-      const rect = inst.wrap.getBoundingClientRect();
-      if (rect.width <= 1 || rect.height <= 1) return;
-
-      const x = Math.floor((rect.left - canvasRect.left) * dpr);
-      const y = Math.floor((canvasRect.bottom - rect.bottom) * dpr);
-      const w = Math.ceil(rect.width * dpr);
-      const h = Math.ceil(rect.height * dpr);
-
-      if (w <= 0 || h <= 0) return;
-
-      this.renderer.setViewport(x, y, w, h);
-      this.renderer.setScissor(x, y, w, h);
-
-      inst.camera.aspect = rect.width / rect.height;
-      inst.camera.updateProjectionMatrix();
-      this.renderer.render(inst.scene, inst.camera);
+    this._resizeObserver = new ResizeObserver(() => {
+      this.instances.forEach((inst) => this._resizeInstance(inst));
     });
-
-    this.renderer.setScissorTest(false);
+    this.instances.forEach((inst) => this._resizeObserver.observe(inst.wrap));
   }
 
   _startLoop() {
@@ -210,9 +172,9 @@ export class ClassPreviewManager {
         inst.model.rotation.y = FACE_CAMERA_Y;
         inst.model.rotation.z = sway;
         inst.model.rotation.x = 0;
+        inst.renderer.render(inst.scene, inst.camera);
       });
 
-      this._renderAll();
       this.raf = requestAnimationFrame(tick);
     };
     tick();
@@ -229,15 +191,10 @@ export class ClassPreviewManager {
       this._resizeObserver = null;
     }
     this.equipmentManager.detachAll();
+    this.instances.forEach((inst) => {
+      inst.wrap.querySelector('.class-preview-canvas')?.remove();
+      inst.renderer.dispose();
+    });
     this.instances = [];
-    if (this.renderer) {
-      this.renderer.dispose();
-      this.renderer = null;
-    }
-    if (this.canvas) {
-      this.canvas.remove();
-      this.canvas = null;
-    }
-    this.grid = null;
   }
 }

@@ -21,6 +21,7 @@
   --radius: 12px;
   --shell-max: 1280px;
   --battle-canvas-h: 50%;
+  --safe-top-inset: max(env(safe-area-inset-top, 0px), 0px);
 }
 
 /* 右上角版本標誌 */
@@ -105,9 +106,9 @@ body.platform-windows #app {
   font-size: 0.62rem;
 }
 
-/* 觸控裝置 — Boss UI 放大並上移 */
+/* 觸控裝置 — Boss UI 放大（避免 Safari 頂部列遮擋，不再額外上移） */
 .platform-touch .boss-head-stack {
-  transform: translate(-50%, calc(-100% - 22px));
+  transform: translate(-50%, -100%);
 }
 
 .platform-touch .boss-hp-panel {
@@ -343,9 +344,10 @@ html, body {
 #screen-class {
   justify-content: flex-start;
   padding-top: max(12px, env(safe-area-inset-top));
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  gap: 10px;
 }
 
 #screen-class h2 {
@@ -354,27 +356,21 @@ html, body {
 }
 
 #screen-class .btn-primary {
-  margin-top: 8px;
+  margin-top: 4px;
+  margin-bottom: 8px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 2;
 }
 
 .class-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: clamp(12px, 2.5vw, 18px);
-  margin: 12px 0;
-  width: min(680px, 96vw);
+  gap: clamp(10px, 2vw, 14px);
+  margin: 8px 0;
+  width: min(560px, 92vw);
   position: relative;
-  min-height: 420px;
-}
-
-.class-preview-shared {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 10;
+  flex-shrink: 0;
 }
 
 .class-select-hint {
@@ -393,7 +389,7 @@ html, body {
   z-index: 1;
   border: 3px solid rgba(255, 255, 255, 0.15);
   border-radius: 16px;
-  padding: 12px 14px 16px;
+  padding: 10px 12px 12px;
   text-align: center;
   cursor: pointer;
   transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
@@ -426,13 +422,21 @@ html, body {
 }
 
 .class-preview-wrap {
+  position: relative;
   width: 100%;
-  height: clamp(110px, 28vw, 160px);
-  margin-bottom: 10px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.18);
+  height: clamp(88px, 22vw, 118px);
+  margin-bottom: 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
   border: 1px solid rgba(255, 255, 255, 0.2);
+  overflow: hidden;
   pointer-events: none;
+}
+
+.class-preview-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .class-card.selected {
@@ -1053,17 +1057,16 @@ html, body {
   }
 
   .class-grid {
-    width: min(620px, 94vw);
-    min-height: 460px;
-    gap: 14px;
+    width: min(520px, 92vw);
+    gap: 12px;
   }
 
   .class-preview-wrap {
-    height: clamp(120px, 30vw, 150px);
+    height: clamp(84px, 20vw, 110px);
   }
 
-  .platform-touch .boss-head-stack {
-    transform: translate(-50%, calc(-100% - 32px));
+  :root {
+    --safe-top-inset: max(env(safe-area-inset-top, 0px), 8px);
   }
 
   .platform-touch .boss-name-floating {

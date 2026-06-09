@@ -230,14 +230,30 @@ export class Scene3D {
     };
   }
 
-  _placeFloatingEl(el, screenPos) {
+  _getSafeTopInset() {
+    const cssInset = parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue('--safe-top-inset'),
+    ) || 0;
+    const isTouch = document.body.classList.contains('platform-touch');
+    const base = cssInset + (isTouch ? 56 : 12);
+
+    const vv = window.visualViewport;
+    if (!vv) return base;
+
+    const viewportInset = Math.max(0, vv.offsetTop);
+    return Math.max(base, viewportInset + (isTouch ? 10 : 6));
+  }
+
+  _placeFloatingEl(el, screenPos, { minTop } = {}) {
     if (!el || !screenPos) {
       if (el) el.classList.add('hidden');
       return;
     }
     el.classList.remove('hidden');
+    let top = screenPos.y;
+    if (minTop != null) top = Math.max(top, minTop);
     el.style.left = `${screenPos.x}px`;
-    el.style.top = `${screenPos.y}px`;
+    el.style.top = `${top}px`;
   }
 
   async _loadModel(path, key, animType) {
@@ -471,11 +487,12 @@ export class Scene3D {
     if (enemy) {
       const headPos = new THREE.Vector3();
       enemy.getWorldPosition(headPos);
-      const bossHeadLift = document.body.classList.contains('platform-touch') ? 2.65 : 2.15;
+      const bossHeadLift = document.body.classList.contains('platform-touch') ? 1.88 : 1.72;
       headPos.y += bossHeadLift;
       this._placeFloatingEl(
         document.getElementById('boss-head-stack'),
         this._projectToScreen(headPos),
+        { minTop: this._getSafeTopInset() },
       );
     }
 
