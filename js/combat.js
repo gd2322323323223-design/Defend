@@ -58,7 +58,7 @@ function rollHit(classId) {
 
 export function getBossRoundInfo(bossRound) {
   if (bossRound % 3 === 2) {
-    return { type: 'ultimate', rawDamage: 18, label: '蓄力重擊', sucking: false };
+    return { type: 'ultimate', rawDamage: 15, label: '蓄力重擊', sucking: false };
   }
   if (bossRound % 3 === 0) {
     return { type: 'lifesteal', rawDamage: 8, label: '吸血撕咬', sucking: true };

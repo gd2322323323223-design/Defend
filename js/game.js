@@ -18,6 +18,7 @@ import {
 } from '@/combat.js';
 import { assignFormationSlots } from '@/models-config.js';
 import { Scene3D } from '@/scene3d.js';
+import { ClassPreviewManager } from '@/class-preview.js';
 import { delay } from '@/vfx.js';
 
 export class Game {
@@ -32,6 +33,7 @@ export class Game {
     this.currentTurnStep = 0;
     this.formationSlots = [];
     this.scene3d = null;
+    this.classPreviews = new ClassPreviewManager();
     this._resolving = false;
     this._activePlayerIdx = null;
     this._bindUI();
@@ -61,12 +63,13 @@ export class Game {
   }
 
   _renderClassSelection() {
+    this.classPreviews.dispose();
     const grid = document.getElementById('class-grid');
     grid.innerHTML = '';
 
     const maxPlayers = this.mode === 'dual' ? 2 : 1;
     const hint = document.createElement('p');
-    hint.style.cssText = 'grid-column: 1/-1; text-align:center; color:#9fa8da; margin-bottom:8px;';
+    hint.className = 'class-select-hint';
     hint.textContent = maxPlayers === 1
       ? '選擇 1 個職業'
       : '玩家 1 與玩家 2 各選一個職業';
@@ -77,13 +80,14 @@ export class Game {
       card.className = 'class-card';
       card.dataset.classId = cls.id;
       card.innerHTML = `
-        <span class="icon">${cls.icon}</span>
         <span class="name">${cls.name}</span>
         <span class="desc">${cls.desc}</span>
       `;
       card.addEventListener('click', () => this._toggleClass(cls, card));
       grid.appendChild(card);
     });
+
+    this.classPreviews.mountAll(Object.values(CLASSES));
   }
 
   _toggleClass(cls, card) {
@@ -574,6 +578,10 @@ export class Game {
   }
 
   _showScreen(id) {
+    if (id !== 'screen-class') {
+      this.classPreviews.dispose();
+    }
+
     document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
 

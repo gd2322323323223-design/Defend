@@ -150,6 +150,49 @@ export class BattleVFX {
     this._spawnProjectileMesh(fromModel, toModel, cfg);
   }
 
+  /** Boss 普通攻擊 — 三顆遞增大小的異色球 */
+  spawnBossNormalVolley(fromModel, toModel) {
+    const volley = [
+      { color: 0x42a5f5, glow: 0x90caf9, size: 0.11, speed: 480 },
+      { color: 0xab47bc, glow: 0xce93d8, size: 0.17, speed: 480 },
+      { color: 0xff7043, glow: 0xffab40, size: 0.25, speed: 480 },
+    ];
+    return volley.reduce(
+      (chain, cfg, i) => chain.then(() => {
+        if (i > 0) return delay(180).then(() => this._spawnProjectileMeshAwait(fromModel, toModel, cfg));
+        return this._spawnProjectileMeshAwait(fromModel, toModel, cfg);
+      }),
+      Promise.resolve(),
+    );
+  }
+
+  _spawnProjectileMeshAwait(fromModel, toModel, cfg) {
+    return new Promise((resolve) => {
+      const from = new THREE.Vector3();
+      const to = new THREE.Vector3();
+      fromModel.getWorldPosition(from);
+      toModel.getWorldPosition(to);
+      from.y += 1.4;
+      to.y += 1.4;
+
+      const ball = this._buildProjectileMesh(cfg);
+      ball.renderOrder = 998;
+      ball.position.copy(from);
+      this.scene.add(ball);
+      this._track(ball, cfg.speed + 200);
+
+      const start = performance.now();
+      const tick = () => {
+        const t = Math.min((performance.now() - start) / cfg.speed, 1);
+        ball.position.lerpVectors(from, to, t);
+        ball.rotation.y += 0.25;
+        if (t < 1) requestAnimationFrame(tick);
+        else resolve();
+      };
+      tick();
+    });
+  }
+
   spawnProjectile(fromModel, toModel, color = 0xff6b35) {
     this._spawnProjectileMesh(fromModel, toModel, {
       color,

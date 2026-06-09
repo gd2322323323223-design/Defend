@@ -420,42 +420,42 @@ export class Scene3D {
 
     if (phaseType === 'ultimate') {
       const baseY = enemy.position.y;
-      this.vfx.spawnGroundGlow(enemy, 0xff6b35, 1500);
-      this.vfx.spawnBossChargeAura(enemy, 0xffab40, 1400);
+      this.vfx.spawnGroundGlow(enemy, 0xff6b35, 1300);
+      this.vfx.spawnBossChargeAura(enemy, 0xffab40, 1300);
       this._playAnimation('enemy', 'cast', { loop: false });
-      await delay(1200);
-      await this._tweenModelY(enemy, baseY + 1.0, 480);
-      await delay(320);
+      await delay(1100);
+      await this._tweenModelY(enemy, baseY + 1.0, 450);
+      await delay(280);
       this.vfx.spawnBossProjectile(enemy, teamTarget, 'ultimate');
-      await delay(380);
-      await this._tweenModelY(enemy, baseY, 420);
-      await delay(580);
+      await delay(420);
+      await this._tweenModelY(enemy, baseY, 450);
+      await delay(520);
       await this._finishBossHit(teamTarget, totalDamage, 'ultimate');
-      await delay(750);
+      await delay(780);
       return;
     }
 
     if (phaseType === 'lifesteal') {
-      this.vfx.spawnBossChargeAura(enemy, 0x9c27b0, 1000);
+      this.vfx.spawnBossChargeAura(enemy, 0x9c27b0, 900);
       this._playAnimation('enemy', 'run', { loop: false });
-      await delay(750);
+      await delay(650);
       this._playAnimation('enemy', 'attack', { loop: false });
       this.vfx.spawnDrainBeam(enemy, teamTarget);
-      await delay(950);
+      await delay(850);
       this.vfx.spawnBossProjectile(enemy, teamTarget, 'lifesteal');
-      await delay(520);
+      await delay(500);
       await this._finishBossHit(teamTarget, totalDamage, 'lifesteal');
       this.vfx.spawnLifestealParticles(teamTarget);
-      await delay(800);
+      await delay(600);
       return;
     }
 
     this._playAnimation('enemy', 'attack', { loop: false });
-    await delay(700);
-    this.vfx.spawnBossProjectile(enemy, teamTarget, 'normal');
-    await delay(520);
+    await delay(620);
+    await this.vfx.spawnBossNormalVolley(enemy, teamTarget);
+    await delay(280);
     await this._finishBossHit(teamTarget, totalDamage, 'normal');
-    await delay(600);
+    await delay(380);
   }
 
   _updateFloatingUI() {
