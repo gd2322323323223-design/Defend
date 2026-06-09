@@ -15,7 +15,6 @@ import {
   getShieldHitsForResolve,
   getRoundShieldTotal,
   ROUND_DURATION,
-  sumPlayerHits,
 } from '@/combat.js';
 import { assignFormationSlots } from '@/models-config.js';
 import { Scene3D } from '@/scene3d.js';
