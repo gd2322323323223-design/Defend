@@ -86,7 +86,7 @@ export class Game {
 
     Object.values(CLASSES).forEach((cls) => {
       const card = document.createElement('div');
-      card.className = 'class-card';
+      card.className = `class-card class-card-${cls.id}`;
       card.dataset.classId = cls.id;
       card.innerHTML = `
         <div class="class-preview-wrap"></div>

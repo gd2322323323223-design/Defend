@@ -12,9 +12,8 @@ const gltfCache = new Map();
 const loader = new GLTFLoader();
 let heroAnimClips = null;
 
-function isLowPowerDevice() {
-  return window.matchMedia('(max-width: 1024px)').matches
-    || navigator.maxTouchPoints > 0;
+function isTouchDevice() {
+  return navigator.maxTouchPoints > 0;
 }
 
 async function fetchGLTF(path) {
@@ -62,7 +61,7 @@ export class ClassPreviewManager {
     this.grid = null;
     this.canvas = null;
     this.renderer = null;
-    this.lowPower = isLowPowerDevice();
+    this.isTouch = isTouchDevice();
     this._active = false;
   }
 
@@ -78,14 +77,14 @@ export class ClassPreviewManager {
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
       alpha: true,
-      antialias: !this.lowPower,
-      powerPreference: 'low-power',
+      antialias: true,
+      powerPreference: 'high-performance',
     });
-    this.renderer.setPixelRatio(this.lowPower ? 1 : Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setScissorTest(true);
     this.renderer.setClearColor(0x000000, 0);
 
-    const clips = this.lowPower ? [] : await loadHeroAnimClips();
+    const clips = await loadHeroAnimClips();
 
     for (let i = 0; i < classes.length; i++) {
       await this._mountOne(classes[i], i, clips);
@@ -119,7 +118,7 @@ export class ClassPreviewManager {
       const gltf = await fetchGLTF(cls.modelPath);
       const model = cloneSkinnedModel(gltf.scene);
       elevateModel(model);
-      model.scale.setScalar(this.lowPower ? 0.48 : 0.52);
+      model.scale.setScalar(0.54);
       model.position.y = 0.08;
       model.rotation.y = FACE_CAMERA_Y;
       scene.add(model);
@@ -133,12 +132,10 @@ export class ClassPreviewManager {
       }
 
       let mixer = null;
-      if (!this.lowPower) {
-        const idleClip = findIdleClip(clips);
-        if (idleClip) {
-          mixer = new THREE.AnimationMixer(model);
-          mixer.clipAction(idleClip).play();
-        }
+      const idleClip = findIdleClip(clips);
+      if (idleClip) {
+        mixer = new THREE.AnimationMixer(model);
+        mixer.clipAction(idleClip).play();
       }
 
       this.instances.push({

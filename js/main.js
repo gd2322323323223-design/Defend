@@ -13,5 +13,23 @@ if (/Windows/i.test(navigator.userAgent)) {
   document.body.classList.add('platform-windows');
 }
 
+if (navigator.maxTouchPoints > 0 || /iPad|iPhone|Android/i.test(navigator.userAgent)) {
+  document.body.classList.add('platform-touch');
+}
+
+/** 禁止 iPad / 手機雙擊縮放 */
+document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
+
+let lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => {
+  const now = Date.now();
+  if (now - lastTouchEnd < 320) {
+    e.preventDefault();
+  }
+  lastTouchEnd = now;
+}, { passive: false });
+
 const game = new Game();
 game.init();

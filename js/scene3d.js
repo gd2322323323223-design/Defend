@@ -471,7 +471,8 @@ export class Scene3D {
     if (enemy) {
       const headPos = new THREE.Vector3();
       enemy.getWorldPosition(headPos);
-      headPos.y += 1.72;
+      const bossHeadLift = document.body.classList.contains('platform-touch') ? 2.65 : 2.15;
+      headPos.y += bossHeadLift;
       this._placeFloatingEl(
         document.getElementById('boss-head-stack'),
         this._projectToScreen(headPos),

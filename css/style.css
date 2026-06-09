@@ -49,76 +49,88 @@ body.platform-windows #app {
   height: calc(100% / 0.88);
 }
 
-/* Boss 頭頂名稱 + 血條堆疊（血條在名稱後方/下方） */
+/* Boss 頭頂 — 橢圓框（與隊伍生命同款） */
 .boss-head-stack {
   position: fixed;
   z-index: 25;
   pointer-events: none;
   transform: translate(-50%, -100%);
+}
+
+.boss-hp-panel {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 5px;
+  padding: 6px 14px 8px;
+  background: rgba(15, 20, 40, 0.88);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 138, 128, 0.45);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
 }
 
-.boss-head-stack .boss-hp-floating {
-  position: relative;
-  transform: none;
-  z-index: 1;
+.boss-hp-block {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .boss-debuff-icon {
   font-size: 1.05rem;
   line-height: 1;
-  z-index: 0;
   opacity: 0.95;
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
   flex-shrink: 0;
 }
 
-.boss-hp-floating .boss-floating-bar {
-  position: relative;
-  z-index: 1;
-}
-
-.boss-head-stack .boss-name-floating {
-  position: static;
-  transform: none;
-  z-index: 2;
+.boss-name-floating {
   font-weight: 800;
   font-size: 0.9rem;
   color: #ff8a80;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
   white-space: nowrap;
 }
 
-.boss-head-stack .boss-floating-bar {
-  width: 88px;
+.boss-floating-bar {
+  width: 100px;
   max-width: none;
-  height: 11px;
+  height: 12px;
   margin-top: 0;
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
 }
 
 .boss-head-stack .hp-text {
-  font-size: 0.58rem;
+  font-size: 0.62rem;
 }
 
-/* 保留單獨選擇器相容 */
-.boss-name-floating {
-  font-weight: 800;
-  font-size: 0.9rem;
-  color: #ff8a80;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
-  white-space: nowrap;
+/* 觸控裝置 — Boss UI 放大並上移 */
+.platform-touch .boss-head-stack {
+  transform: translate(-50%, calc(-100% - 22px));
 }
 
-.boss-hp-floating {
-  pointer-events: none;
+.platform-touch .boss-hp-panel {
+  padding: 8px 18px 10px;
+  border-radius: 20px;
+  gap: 6px;
+}
+
+.platform-touch .boss-name-floating {
+  font-size: 1.1rem;
+}
+
+.platform-touch .boss-floating-bar {
+  width: 150px;
+  height: 16px;
+}
+
+.platform-touch .boss-head-stack .hp-text {
+  font-size: 0.78rem;
+}
+
+.platform-touch .boss-debuff-icon {
+  font-size: 1.25rem;
 }
 
 /* 隊伍生命 — 跟隨英雄群組上方 */
@@ -201,7 +213,19 @@ html, body {
   background: var(--bg-dark);
   color: var(--text-light);
   touch-action: manipulation;
+  -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
+  -ms-touch-action: manipulation;
+}
+
+#app,
+#game-shell,
+.screen,
+.word-cell,
+.btn,
+.class-card,
+.player-zone {
+  touch-action: manipulation;
 }
 
 #app {
@@ -337,11 +361,11 @@ html, body {
 .class-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: clamp(8px, 2vw, 14px);
-  margin: 10px 0;
-  width: min(520px, 94vw);
+  gap: clamp(12px, 2.5vw, 18px);
+  margin: 12px 0;
+  width: min(680px, 96vw);
   position: relative;
-  min-height: 320px;
+  min-height: 420px;
 }
 
 .class-preview-shared {
@@ -367,47 +391,70 @@ html, body {
   align-items: stretch;
   position: relative;
   z-index: 1;
-  background: var(--bg-panel);
-  border: 2px solid transparent;
-  border-radius: var(--radius);
-  padding: 8px 10px 12px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  padding: 12px 14px 16px;
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.2s, transform 0.15s;
+  transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
   touch-action: manipulation;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.class-card-knight {
+  background: linear-gradient(160deg, #1a3a5c 0%, #4fc3f7 100%);
+  color: #e3f2fd;
+}
+
+.class-card-warrior {
+  background: linear-gradient(160deg, #5d2010 0%, #ff7043 100%);
+  color: #fff3e0;
+}
+
+.class-card-mage {
+  background: linear-gradient(160deg, #3a1a52 0%, #ab47bc 100%);
+  color: #f3e5f5;
+}
+
+.class-card-assassin {
+  background: linear-gradient(160deg, #1b3d22 0%, #66bb6a 100%);
+  color: #e8f5e9;
+}
+
+.class-card .desc {
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .class-preview-wrap {
   width: 100%;
-  height: clamp(72px, 20vw, 108px);
-  margin-bottom: 8px;
-  border-radius: 10px;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  height: clamp(110px, 28vw, 160px);
+  margin-bottom: 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   pointer-events: none;
 }
 
 .class-card.selected {
   border-color: var(--accent-gold);
-  transform: scale(1.04);
-  box-shadow: 0 0 24px rgba(255, 213, 79, 0.3);
+  transform: scale(1.03);
+  box-shadow: 0 0 28px rgba(255, 213, 79, 0.45), 0 6px 20px rgba(0, 0, 0, 0.3);
 }
 
 .class-card .name {
   display: block;
   width: 100%;
-  font-size: clamp(0.95rem, 3vw, 1.15rem);
+  font-size: clamp(1.05rem, 3.2vw, 1.3rem);
   font-weight: 800;
   line-height: 1.3;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .class-card .desc {
   display: block;
   width: 100%;
-  font-size: clamp(0.65rem, 2.1vw, 0.76rem);
-  color: var(--text-dim);
-  line-height: 1.4;
+  font-size: clamp(0.72rem, 2.3vw, 0.85rem);
+  line-height: 1.45;
 }
 
 /* AI 叫陣對話框 */
@@ -1006,12 +1053,26 @@ html, body {
   }
 
   .class-grid {
-    width: min(500px, 92vw);
-    gap: 10px;
+    width: min(620px, 94vw);
+    min-height: 460px;
+    gap: 14px;
   }
 
   .class-preview-wrap {
-    height: clamp(68px, 18vw, 96px);
+    height: clamp(120px, 30vw, 150px);
+  }
+
+  .platform-touch .boss-head-stack {
+    transform: translate(-50%, calc(-100% - 32px));
+  }
+
+  .platform-touch .boss-name-floating {
+    font-size: 1.2rem;
+  }
+
+  .platform-touch .boss-floating-bar {
+    width: 165px;
+    height: 18px;
   }
 
   .boss-zone {
