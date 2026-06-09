@@ -5,23 +5,23 @@
 import { ENEMY } from '@/ai-taunt.js';
 
 /** 全隊英雄總血量 */
-export const HERO_HP = 20;
+export const HERO_HP = 30;
 export const TEAM_MAX_HP = HERO_HP;
 
 /** Boss 初始血量 */
-export const BOSS_HP = 50;
+export const BOSS_HP = 100;
 
 export const ROUND_DURATION = 10;
 
 /** 職業能量轉換乘數（1 次答對 = 1 點能量） */
 export const CLASS_MULTIPLIERS = {
-  knight: { shield: 2 },
-  warrior: { damage: 1, shield: 1 },
-  mage: { damage: 1.6 },
-  assassin: { damage: 1.4 },
+  knight: { shield: 1.5 },
+  warrior: { damage: 0.8, shield: 0.8 },
+  mage: { damage: 1.4 },
+  assassin: { damage: 1.2 },
 };
 
-const MAGE_DEBUFF_THRESHOLD = 4;
+const MAGE_DEBUFF_THRESHOLD = 6;
 const MAGE_DEBUFF_RATE = 0.5;
 const ASSASSIN_CRIT_RATE = 0.25;
 
@@ -40,14 +40,14 @@ export function formatCombatNumber(value) {
 function rollHit(classId) {
   switch (classId) {
     case 'knight':
-      return { shield: 2, shieldDisplay: 2 };
+      return { shield: 1.5, shieldDisplay: 1.5 };
     case 'warrior':
-      return { damage: 1, shield: 1, damageDisplay: 1, shieldDisplay: 1 };
+      return { damage: 0.8, shield: 0.8, damageDisplay: 0.8, shieldDisplay: 0.8 };
     case 'mage':
-      return { damage: 1.6, damageDisplay: 1.6 };
+      return { damage: 1.4, damageDisplay: 1.4 };
     case 'assassin': {
       const crit = Math.random() < ASSASSIN_CRIT_RATE;
-      const base = 1.4;
+      const base = 1.2;
       const amount = crit ? base * 2 : base;
       return { damage: amount, damageDisplay: amount, crit };
     }
@@ -56,14 +56,15 @@ function rollHit(classId) {
   }
 }
 
+/** Boss 三回合循環：普通 12 → 吸血 10 → 蓄力 22 */
 export function getBossRoundInfo(bossRound) {
-  if (bossRound % 3 === 2) {
-    return { type: 'ultimate', rawDamage: 15, label: '蓄力重擊', sucking: false };
-  }
   if (bossRound % 3 === 0) {
-    return { type: 'lifesteal', rawDamage: 8, label: '吸血撕咬', sucking: true };
+    return { type: 'ultimate', rawDamage: 22, label: '蓄力重擊', sucking: false };
   }
-  return { type: 'normal', rawDamage: 10, label: '普通攻擊', sucking: false };
+  if (bossRound % 3 === 2) {
+    return { type: 'lifesteal', rawDamage: 10, label: '吸血撕咬', sucking: true };
+  }
+  return { type: 'normal', rawDamage: 12, label: '普通攻擊', sucking: false };
 }
 
 function sumHits(hits, key) {
@@ -135,7 +136,7 @@ export function computeBattleResult(combat, bossRound) {
   finalDamageToHero = Math.round(finalDamageToHero);
 
   let bossHeal = 0;
-  if (roundInfo.sucking) bossHeal = finalDamageToHero;
+  if (roundInfo.sucking) bossHeal = Math.round(bossRawDamage);
 
   return {
     players,
@@ -174,7 +175,7 @@ export function computeBossPhase(combat, bossRound) {
   finalDamageToHero = Math.round(finalDamageToHero);
 
   let bossHeal = 0;
-  if (roundInfo.sucking) bossHeal = finalDamageToHero;
+  if (roundInfo.sucking) bossHeal = Math.round(bossRawDamage);
 
   return {
     shieldGenerated: totalShield,

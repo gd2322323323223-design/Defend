@@ -402,18 +402,23 @@ export class Scene3D {
     });
   }
 
-  async _finishBossHit(teamTarget, totalDamage, phaseType) {
+  async _finishBossHit(teamTarget, totalDamage, phaseType, blocked = 0) {
     this.vfx.spawnBossHit(teamTarget, phaseType);
-    const dmgColor = phaseType === 'ultimate' ? '#ff6e40'
-      : phaseType === 'lifesteal' ? '#ab47bc' : '#ef5350';
-    this.vfx.showDamageNumber(teamTarget, `-${Math.round(totalDamage)}`, dmgColor, 0);
-    this._shakeModel(teamTarget);
-    this.heroIds.forEach((id) => this._playAnimation(id, 'hit', { loop: false }));
+    if (totalDamage > 0) {
+      const dmgColor = phaseType === 'ultimate' ? '#ff6e40'
+        : phaseType === 'lifesteal' ? '#ab47bc' : '#ef5350';
+      this.vfx.showDamageNumber(teamTarget, `-${Math.round(totalDamage)}`, dmgColor, 0);
+      this._shakeModel(teamTarget);
+      this.heroIds.forEach((id) => this._playAnimation(id, 'hit', { loop: false }));
+    } else if (blocked > 0) {
+      this.vfx.spawnShieldFlash(teamTarget);
+      this.vfx.showDamageNumber(teamTarget, '格擋!', '#4fc3f7', 0);
+    }
   }
 
-  /** Boss 反擊隊伍 — 依招式類型不同動作與節奏 */
-  async playBossAttackTeam(totalDamage, phaseType = 'normal') {
-    if (totalDamage <= 0) return;
+  /** Boss 反擊隊伍 — 依招式類型不同動作與節奏（護盾全擋也播放） */
+  async playBossAttackTeam(totalDamage, phaseType = 'normal', { blocked = 0 } = {}) {
+    if (totalDamage <= 0 && blocked <= 0) return;
     const enemy = this.models.enemy;
     const teamTarget = this.getFrontHeroModel() || this.models[this.heroIds[0]];
     if (!enemy || !teamTarget) return;
@@ -430,7 +435,7 @@ export class Scene3D {
       await delay(420);
       await this._tweenModelY(enemy, baseY, 450);
       await delay(520);
-      await this._finishBossHit(teamTarget, totalDamage, 'ultimate');
+      await this._finishBossHit(teamTarget, totalDamage, 'ultimate', blocked);
       await delay(780);
       return;
     }
@@ -444,7 +449,7 @@ export class Scene3D {
       await delay(850);
       this.vfx.spawnBossProjectile(enemy, teamTarget, 'lifesteal');
       await delay(500);
-      await this._finishBossHit(teamTarget, totalDamage, 'lifesteal');
+      await this._finishBossHit(teamTarget, totalDamage, 'lifesteal', blocked);
       this.vfx.spawnLifestealParticles(teamTarget);
       await delay(600);
       return;
@@ -454,7 +459,7 @@ export class Scene3D {
     await delay(620);
     await this.vfx.spawnBossNormalVolley(enemy, teamTarget);
     await delay(280);
-    await this._finishBossHit(teamTarget, totalDamage, 'normal');
+    await this._finishBossHit(teamTarget, totalDamage, 'normal', blocked);
     await delay(380);
   }
 

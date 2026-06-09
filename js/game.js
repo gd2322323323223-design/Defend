@@ -36,6 +36,7 @@ export class Game {
     this.classPreviews = new ClassPreviewManager();
     this._resolving = false;
     this._activePlayerIdx = null;
+    this._tauntInProgress = false;
     this._bindUI();
   }
 
@@ -118,17 +119,33 @@ export class Game {
   }
 
   async _startTaunt() {
-    document.getElementById('taunt-text').textContent = getRandomTaunt();
-    this._showScreen('screen-taunt');
-    this.scene3d.clearScene();
-    await this.scene3d.loadEnemy(ENEMY.modelPath);
+    if (this._tauntInProgress) return;
+    this._tauntInProgress = true;
 
+    const startBtn = document.getElementById('btn-start-battle');
     const countdownEl = document.getElementById('taunt-countdown');
-    countdownEl.textContent = '2 秒後進入戰鬥…';
-    await delay(1000);
-    countdownEl.textContent = '1 秒後進入戰鬥…';
-    await delay(1000);
-    await this._startBattle();
+    if (startBtn) startBtn.disabled = true;
+
+    try {
+      document.getElementById('taunt-text').textContent = getRandomTaunt();
+      this._showScreen('screen-taunt');
+      this.scene3d.clearScene();
+
+      const loadEnemyTask = this.scene3d.loadEnemy(ENEMY.modelPath);
+      countdownEl.textContent = '2 秒後進入戰鬥…';
+      await delay(1000);
+      countdownEl.textContent = '1 秒後進入戰鬥…';
+      await Promise.all([delay(1000), loadEnemyTask]);
+      countdownEl.textContent = '進入戰鬥！';
+      await this._startBattle();
+    } catch (err) {
+      console.error('進入戰鬥失敗', err);
+      countdownEl.textContent = '載入失敗，請重試…';
+      if (startBtn) startBtn.disabled = false;
+      this._showScreen('screen-class');
+    } finally {
+      this._tauntInProgress = false;
+    }
   }
 
   async _startBattle() {
@@ -464,15 +481,21 @@ export class Game {
     }
 
     if (!this.combat.victory) {
-      if (result.damageReceived > 0) {
-        indicator.textContent = `👹 Boss ${result.bossRound.label}！`;
-        await this.scene3d.playBossAttackTeam(result.damageReceived, result.bossRound.type);
-        this.combat.teamHp = Math.max(0, this.combat.teamHp - result.damageReceived);
-        this._updateTeamHp();
-        if (this.combat.teamHp <= 0) this.combat.defeat = true;
-      } else if (result.blocked > 0) {
-        indicator.textContent = `🛡️ 護盾完全抵擋 ${Math.round(result.blocked)} 點傷害！`;
-        await delay(700);
+      const bossAttack = result.damageReceived > 0 || result.blocked > 0;
+      if (bossAttack) {
+        indicator.textContent = result.blocked > 0 && result.damageReceived <= 0
+          ? `👹 Boss ${result.bossRound.label}！（護盾抵擋 ${Math.round(result.blocked)} 點）`
+          : `👹 Boss ${result.bossRound.label}！`;
+        await this.scene3d.playBossAttackTeam(
+          result.damageReceived,
+          result.bossRound.type,
+          { blocked: result.blocked },
+        );
+        if (result.damageReceived > 0) {
+          this.combat.teamHp = Math.max(0, this.combat.teamHp - result.damageReceived);
+          this._updateTeamHp();
+          if (this.combat.teamHp <= 0) this.combat.defeat = true;
+        }
       }
 
       if (result.bossHeal > 0) {
