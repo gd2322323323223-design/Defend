@@ -8,6 +8,7 @@ import {
   getHitPresetForClass,
   getHitPresetForBoss,
 } from '@/hit-effects.js';
+import { spawnSpriteBillboard, SPLASH04 } from '@/sprite-billboard.js';
 
 const CLASS_PROJECTILE = {
   knight: { color: 0x4fc3f7, glow: 0x29b6f6, size: 0.14, speed: 300, shape: 'shield' },
@@ -24,8 +25,9 @@ const BOSS_PROJECTILE = {
 };
 
 export class BattleVFX {
-  constructor(scene) {
+  constructor(scene, camera) {
     this.scene = scene;
+    this.camera = camera;
     this.active = [];
   }
 
@@ -235,6 +237,18 @@ export class BattleVFX {
 
   spawnClassHit(model, classId, crit = false) {
     this.spawnStylizedHit(model, getHitPresetForClass(classId, crit));
+  }
+
+  /** 刺客噴濺序列圖 — 雙人模式 Boss 受擊 */
+  spawnAssassinSplash(model, crit = false) {
+    return spawnSpriteBillboard({
+      scene: this.scene,
+      camera: this.camera,
+      trackFn: (obj, ttl) => this._track(obj, ttl),
+      model,
+      config: SPLASH04,
+      scale: crit ? SPLASH04.scale * 1.35 : SPLASH04.scale,
+    });
   }
 
   spawnBossHit(model, phaseType = 'normal') {

@@ -7,6 +7,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js';
 import { EquipmentManager } from '@/equipment.js';
 import { BattleVFX, delay } from '@/vfx.js';
+import { preloadSpriteSheet, SPLASH04 } from '@/sprite-billboard.js';
 import { formatCombatNumber } from '@/combat.js';
 import {
   ANIMATION_FILES,
@@ -94,7 +95,7 @@ export class Scene3D {
     ground.renderOrder = 0;
     this.scene.add(ground);
 
-    this.vfx = new BattleVFX(this.scene);
+    this.vfx = new BattleVFX(this.scene, this.camera);
     this.clock = new THREE.Clock();
     this._animate();
     window.addEventListener('resize', () => this._onResize());
@@ -108,6 +109,7 @@ export class Scene3D {
       this._loadAnimClips('hero'),
       this._loadAnimClips('enemy'),
       ...PRELOAD_MODELS.map((p) => this._fetchGLTF(p)),
+      preloadSpriteSheet(SPLASH04),
     ]).catch((err) => console.warn('預載資源時發生錯誤', err));
   }
 
@@ -367,7 +369,7 @@ export class Scene3D {
   }
 
   /** 逐次攻擊 Boss，每次顯示獨立傷害數字 */
-  async playHeroAttackHits(heroId, hits, onHit) {
+  async playHeroAttackHits(heroId, hits, onHit, { dualMode = false } = {}) {
     const hero = this.models[heroId];
     const enemy = this.models.enemy;
     if (!hero || !enemy || !hits.length) return;
@@ -378,7 +380,11 @@ export class Scene3D {
       this._playAnimation(heroId, action, { loop: false });
       this.vfx.spawnClassProjectile(hero, enemy, heroId, hit.crit);
       await delay(220);
-      this.vfx.spawnClassHit(enemy, heroId, hit.crit);
+      if (heroId === 'assassin' && dualMode) {
+        await this.vfx.spawnAssassinSplash(enemy, hit.crit);
+      } else {
+        this.vfx.spawnClassHit(enemy, heroId, hit.crit);
+      }
       const label = hit.crit
         ? `-${formatCombatNumber(hit.amount)} 暴擊!`
         : `-${formatCombatNumber(hit.amount)}`;

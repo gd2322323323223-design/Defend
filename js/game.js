@@ -481,11 +481,16 @@ export class Game {
       indicator.textContent = damageHits.some((h) => h.crit)
         ? `⚔️ ${cls.icon} ${cls.name} 暴擊！`
         : `⚔️ ${cls.icon} ${cls.name} 攻擊！`;
-      await this.scene3d.playHeroAttackHits(cls.id, damageHits, (hit) => {
-        this.combat.enemyHp = Math.max(0, this.combat.enemyHp - hit.amount);
-        this._updateHpBar();
-        if (this.combat.enemyHp <= 0) this.combat.victory = true;
-      });
+      await this.scene3d.playHeroAttackHits(
+        cls.id,
+        damageHits,
+        (hit) => {
+          this.combat.enemyHp = Math.max(0, this.combat.enemyHp - hit.amount);
+          this._updateHpBar();
+          if (this.combat.enemyHp <= 0) this.combat.victory = true;
+        },
+        { dualMode: !this.combat.isSolo },
+      );
       this.combat.battleTotalDamage += totalDamage;
       if (this.combat.victory) return;
     }
