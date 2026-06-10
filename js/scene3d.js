@@ -9,10 +9,12 @@ import { EquipmentManager } from '@/equipment.js';
 import { BattleVFX, delay } from '@/vfx.js';
 import { preloadSpriteSheet, SPLASH04 } from '@/sprite-billboard.js';
 import { formatCombatNumber } from '@/combat.js';
+import { loadGLTF } from '@/asset-cache.js';
 import {
   ANIMATION_FILES,
   ANIM_MAP,
   BATTLE_FORMATION,
+  PRELOAD_EQUIPMENT,
   PRELOAD_MODELS,
 } from '@/models-config.js';
 
@@ -109,6 +111,7 @@ export class Scene3D {
       this._loadAnimClips('hero'),
       this._loadAnimClips('enemy'),
       ...PRELOAD_MODELS.map((p) => this._fetchGLTF(p)),
+      ...PRELOAD_EQUIPMENT.map((p) => loadGLTF(p)),
       preloadSpriteSheet(SPLASH04),
     ]).catch((err) => console.warn('預載資源時發生錯誤', err));
   }
@@ -120,7 +123,7 @@ export class Scene3D {
 
   async _fetchGLTF(path) {
     if (this.gltfCache.has(path)) return this.gltfCache.get(path);
-    const gltf = await this.loader.loadAsync(path);
+    const gltf = await loadGLTF(path);
     this.gltfCache.set(path, gltf);
     return gltf;
   }
@@ -165,6 +168,7 @@ export class Scene3D {
     if (model) {
       this._placeEnemy();
       this._playAnimation('enemy', 'idle', { loop: true });
+      model.updateMatrixWorld(true);
       if (defaultEquipment) {
         await this.equipmentManager.attachEquipmentList(model, defaultEquipment, 'enemy');
       }
@@ -179,6 +183,7 @@ export class Scene3D {
       this._placeHero(classId, slotKey);
       this._playAnimation(classId, 'idle', { loop: true });
       if (!this.heroIds.includes(classId)) this.heroIds.push(classId);
+      model.updateMatrixWorld(true);
 
       if (defaultEquipment) {
         await this.equipmentManager.attachEquipmentList(model, defaultEquipment, classId);

@@ -3,43 +3,56 @@
  */
 
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { loadGLTF } from '@/asset-cache.js';
 import { EQUIPMENT_CATALOG, HAND_BONES } from '@/models-config.js';
 
 export class EquipmentManager {
   constructor() {
-    this.loader = new GLTFLoader();
     this.attached = new Map();
   }
 
   findBone(root, side = 'right') {
     const names = HAND_BONES[side] || HAND_BONES.right;
-    const slotNames = names.filter((n) => n.includes('slot'));
-    const boneNames = names.filter((n) => !n.includes('slot'));
+
+    for (const name of names) {
+      const exact = root.getObjectByName(name, true);
+      if (exact) return exact;
+    }
+
     let found = null;
-
-    const matchName = (node, candidates) => {
+    root.traverse((node) => {
+      if (found) return;
       const n = node.name.toLowerCase();
-      return candidates.some((name) => {
+      for (const name of names) {
         const key = name.toLowerCase();
-        return n === key || n.includes(key);
-      });
-    };
-
-    // Kaykit 模型優先掛在 handslot（專用裝備掛點，非骨骼）
-    root.traverse((node) => {
-      if (found) return;
-      if (matchName(node, slotNames)) found = node;
+        if (n === key || n.endsWith(key) || n.includes(key)) {
+          found = node;
+          return;
+        }
+      }
     });
-    if (found) return found;
-
-    root.traverse((node) => {
-      if (found) return;
-      if (!node.isBone && node.type !== 'Bone') return;
-      if (matchName(node, boneNames)) found = node;
-    });
-
     return found;
+  }
+
+  _prepareEquipmentMesh(equipmentModel) {
+    equipmentModel.traverse((child) => {
+      if (!child.isMesh || !child.material) return;
+      child.renderOrder = 25;
+      child.castShadow = true;
+      child.material.fog = false;
+      child.material.depthTest = true;
+      child.material.depthWrite = true;
+      if ('side' in child.material) child.material.side = THREE.DoubleSide;
+    });
+  }
+
+  _refreshSkeleton(root) {
+    root.updateMatrixWorld(true);
+    root.traverse((child) => {
+      if (child.isSkinnedMesh?.skeleton) {
+        child.skeleton.update();
+      }
+    });
   }
 
   async attachEquipment(heroModel, equipmentId, instanceKey = equipmentId) {
@@ -55,28 +68,28 @@ export class EquipmentManager {
 
     let equipmentModel;
     try {
-      const gltf = await this.loader.loadAsync(config.path);
-      equipmentModel = gltf.scene;
+      const gltf = await loadGLTF(config.path);
+      equipmentModel = gltf.scene.clone(true);
     } catch (err) {
       equipmentModel = this._createPlaceholderEquipment();
       console.warn(`裝備模型載入失敗，使用佔位符: ${config.path}`, err);
     }
 
-    const bone = this.findBone(heroModel, config.attachSide);
+    this._prepareEquipmentMesh(equipmentModel);
 
-    equipmentModel.traverse((child) => {
-      if (child.isMesh && child.material) child.material.fog = false;
-    });
+    const attachNode = this.findBone(heroModel, config.attachSide);
 
-    if (bone) {
+    if (attachNode) {
       const { offset, rotation, scale } = config;
       equipmentModel.position.set(offset.x, offset.y, offset.z);
       equipmentModel.rotation.set(rotation.x, rotation.y, rotation.z);
       equipmentModel.scale.setScalar(scale);
-      bone.add(equipmentModel);
+      attachNode.add(equipmentModel);
+      this._refreshSkeleton(heroModel);
     } else {
+      equipmentModel.position.set(0, 1.0, 0.2);
       heroModel.add(equipmentModel);
-      console.warn(`找不到${config.attachSide}手掛點，裝備掛載至模型根節點: ${equipmentId}`);
+      console.warn(`找不到${config.attachSide}手掛點: ${equipmentId}`);
     }
 
     this.attached.set(instanceKey, equipmentModel);
@@ -90,16 +103,18 @@ export class EquipmentManager {
       if (!id) continue;
       results.push(await this.attachEquipment(heroModel, id, `${keyPrefix}_${id}`));
     }
+    this._refreshSkeleton(heroModel);
     return results;
   }
 
   _createPlaceholderEquipment() {
     const group = new THREE.Group();
-    const bowGeo = new THREE.BoxGeometry(0.05, 0.4, 0.1);
-    const bowMat = new THREE.MeshStandardMaterial({ color: 0x8d6e63 });
-    const bow = new THREE.Mesh(bowGeo, bowMat);
-    bow.position.set(0, 0.2, 0);
-    group.add(bow);
+    const blade = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 0.55, 0.12),
+      new THREE.MeshStandardMaterial({ color: 0xc0c0c0, metalness: 0.6, roughness: 0.35 }),
+    );
+    blade.position.set(0, 0.25, 0);
+    group.add(blade);
     return group;
   }
 

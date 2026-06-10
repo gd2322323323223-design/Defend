@@ -1,28 +1,18 @@
 /**
- * 職業選擇畫面 — 每格獨立 canvas 預覽（穩定顯示）
+ * 職業選擇畫面 — 並行載入、不透明預覽（避免背後 3D 場景疊成黑霧）
  */
 
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinnedModel } from 'three/addons/utils/SkeletonUtils.js';
-import { EquipmentManager } from '@/equipment.js';
+import { loadGLTF } from '@/asset-cache.js';
 import { ANIMATION_FILES, ANIM_MAP } from '@/models-config.js';
 
-const gltfCache = new Map();
-const loader = new GLTFLoader();
 let heroAnimClips = null;
-
-async function fetchGLTF(path) {
-  if (gltfCache.has(path)) return gltfCache.get(path);
-  const gltf = await loader.loadAsync(path);
-  gltfCache.set(path, gltf);
-  return gltf;
-}
 
 async function loadHeroAnimClips() {
   if (heroAnimClips) return heroAnimClips;
   try {
-    const gltf = await loader.loadAsync(ANIMATION_FILES.hero);
+    const gltf = await loadGLTF(ANIMATION_FILES.hero);
     heroAnimClips = gltf.animations || [];
   } catch {
     heroAnimClips = [];
@@ -41,11 +31,22 @@ function findIdleClip(clips) {
 
 function elevateModel(model) {
   model.traverse((child) => {
-    if (child.isMesh && child.material) child.material.fog = false;
+    if (child.isMesh && child.material) {
+      child.material.fog = false;
+      child.material.side = THREE.FrontSide;
+    }
   });
 }
 
 const FACE_CAMERA_Y = 0;
+
+/** 與各職業卡配色呼應的不透明底色 */
+const PREVIEW_BG = {
+  knight: 0x1e4a6e,
+  warrior: 0x6d3018,
+  mage: 0x3d1f52,
+  assassin: 0x1f4a28,
+};
 
 export class ClassPreviewManager {
   constructor() {
@@ -53,17 +54,13 @@ export class ClassPreviewManager {
     this.clock = new THREE.Clock();
     this.raf = null;
     this._resizeObserver = null;
-    this.equipmentManager = new EquipmentManager();
     this._active = false;
   }
 
   async mountAll(classes) {
     this.dispose();
     const clips = await loadHeroAnimClips();
-
-    for (let i = 0; i < classes.length; i++) {
-      await this._mountOne(classes[i], i, clips);
-    }
+    await Promise.all(classes.map((cls, i) => this._mountOne(cls, i, clips)));
 
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     this.instances.forEach((inst) => this._resizeInstance(inst));
@@ -83,40 +80,41 @@ export class ClassPreviewManager {
     canvas.className = 'class-preview-canvas';
     wrap.appendChild(canvas);
 
+    const bg = PREVIEW_BG[cls.id] ?? 0x1a2744;
     const renderer = new THREE.WebGLRenderer({
       canvas,
-      alpha: true,
-      antialias: true,
+      alpha: false,
+      antialias: false,
+      powerPreference: 'high-performance',
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setClearColor(0x000000, 0);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.setClearColor(bg, 1);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
 
     const scene = new THREE.Scene();
-    scene.add(new THREE.AmbientLight(0x8899bb, 0.95));
-    const key = new THREE.DirectionalLight(0xfff5e6, 1.15);
-    key.position.set(0, 4, 4);
+    scene.background = new THREE.Color(bg);
+    scene.add(new THREE.HemisphereLight(0xdde8ff, 0x445566, 1.1));
+    const key = new THREE.DirectionalLight(0xfff5e6, 1.35);
+    key.position.set(1.5, 5, 3);
     scene.add(key);
+    const fill = new THREE.DirectionalLight(0x88aaff, 0.45);
+    fill.position.set(-2, 2, -1);
+    scene.add(fill);
 
     const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 50);
     camera.position.set(0, 1.0, 2.45);
     camera.lookAt(0, 0.88, 0);
 
     try {
-      const gltf = await fetchGLTF(cls.modelPath);
+      const gltf = await loadGLTF(cls.modelPath);
       const model = cloneSkinnedModel(gltf.scene);
       elevateModel(model);
       model.scale.setScalar(0.52);
       model.position.y = 0.08;
       model.rotation.y = FACE_CAMERA_Y;
       scene.add(model);
-
-      if (cls.defaultEquipment) {
-        await this.equipmentManager.attachEquipmentList(
-          model,
-          cls.defaultEquipment,
-          `preview_${cls.id}`,
-        );
-      }
 
       let mixer = null;
       const idleClip = findIdleClip(clips);
@@ -190,7 +188,6 @@ export class ClassPreviewManager {
       this._resizeObserver.disconnect();
       this._resizeObserver = null;
     }
-    this.equipmentManager.detachAll();
     this.instances.forEach((inst) => {
       inst.wrap.querySelector('.class-preview-canvas')?.remove();
       inst.renderer.dispose();

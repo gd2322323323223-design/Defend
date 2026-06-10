@@ -6,6 +6,7 @@ const CHAR_BASE = 'Characters/Characters';
 const ASSETS = `${CHAR_BASE}/Assets/gltf`;
 const HEROES = `${CHAR_BASE}/gltf`;
 const SKELETONS = `${CHAR_BASE}/Skeletons/gltf`;
+export const SKELETON_ASSETS = `${CHAR_BASE}/Skeletons/assets/gltf`;
 const ANIM_HERO = `${CHAR_BASE}/Animations/gltf/Rig_Medium`;
 const ANIM_SKELETON = `${CHAR_BASE}/Skeletons/Animations/gltf/Rig_Medium`;
 
@@ -50,6 +51,17 @@ export const PRELOAD_MODELS = [
   `${HEROES}/Barbarian.glb`,
 ];
 
+/** 開局預載武器，避免戰鬥時才掛載 */
+export const PRELOAD_EQUIPMENT = [
+  `${ASSETS}/sword_1handed.gltf`,
+  `${ASSETS}/shield_round.gltf`,
+  `${ASSETS}/staff.gltf`,
+  `${ASSETS}/dagger.gltf`,
+  `${ASSETS}/axe_2handed.gltf`,
+  `${SKELETON_ASSETS}/Skeleton_Blade.gltf`,
+  `${SKELETON_ASSETS}/Skeleton_Shield_Large_A.gltf`,
+];
+
 export const ANIM_MAP = {
   idle: ['Idle_A', 'Idle_B'],
   block: ['Hit_A', 'Use_Item'],
@@ -64,8 +76,6 @@ export const HAND_BONES = {
   right: ['handslot.r', 'hand.r', 'Hand_R', 'mixamorigRightHand'],
   left: ['handslot.l', 'hand.l', 'Hand_L', 'mixamorigLeftHand'],
 };
-
-const SKELETON_ASSETS = `${CHAR_BASE}/Skeletons/assets/gltf`;
 
 export const EQUIPMENT_CATALOG = {
   sword_1handed: {

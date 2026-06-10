@@ -664,7 +664,7 @@ export class Game {
     this.currentTurnStep = 0;
     this.formationSlots = [];
     this.scene3d.clearScene();
-    this.scene3d.loadEnemy(ENEMY.modelPath);
+    this.scene3d.loadEnemy(ENEMY.modelPath, ENEMY.defaultEquipment);
     document.getElementById('equipment-unlock').classList.add('hidden');
     this._showScreen('screen-menu');
   }
@@ -685,6 +685,7 @@ export class Game {
 
     const isBattle = id === 'screen-battle';
     document.getElementById('app').classList.toggle('battle-active', isBattle);
+    document.getElementById('app').classList.toggle('class-select-active', id === 'screen-class');
     const bossHp = document.getElementById('boss-head-stack');
     const teamHp = document.getElementById('team-hp-floating');
     if (bossHp && !isBattle) bossHp.classList.add('hidden');

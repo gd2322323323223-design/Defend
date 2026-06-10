@@ -264,6 +264,12 @@ html, body {
   height: var(--battle-canvas-h);
 }
 
+/* 職業選擇時隱藏背後 Boss 3D，避免透明預覽疊成黑霧 */
+#app.class-select-active #scene-canvas {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .screen {
   position: relative;
   z-index: 10;
@@ -427,8 +433,8 @@ html, body {
   height: clamp(88px, 22vw, 118px);
   margin-bottom: 8px;
   border-radius: 10px;
-  background: rgba(0, 0, 0, 0.22);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.35);
   overflow: hidden;
   pointer-events: none;
 }
