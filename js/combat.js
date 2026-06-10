@@ -9,7 +9,7 @@ export const HERO_HP = 30;
 export const TEAM_MAX_HP = HERO_HP;
 
 /** 雙人模式 — Boss 初始血量 */
-export const BOSS_HP = 100;
+export const BOSS_HP = 75;
 
 /** 單人狂暴大英雄 */
 export const SOLO_HERO_HP = 25;
@@ -24,15 +24,17 @@ export const ROUND_DURATION = 10;
 
 /** 職業能量轉換乘數（1 次答對 = 1 點能量） */
 export const CLASS_MULTIPLIERS = {
-  knight: { shield: 1.5 },
-  warrior: { damage: 0.8, shield: 0.8 },
-  mage: { damage: 1.4 },
-  assassin: { damage: 1.2 },
+  knight: { shield: 2.0 },
+  warrior: { damage: 1.5 },
+  mage: { damage: 1.6 },
+  assassin: { damage: 1.3 },
 };
 
-const MAGE_DEBUFF_THRESHOLD = 6;
-const MAGE_DEBUFF_RATE = 0.5;
-const ASSASSIN_CRIT_RATE = 0.25;
+const MAGE_FREEZE_THRESHOLD = 6;
+const MAGE_FREEZE_REDUCTION = 4;
+const WARRIOR_ARMOR_BREAK_THRESHOLD = 7;
+const ARMOR_BREAK_BONUS = 3;
+const ASSASSIN_CRIT_RATE = 0.35;
 
 export const SHIELD_OVERFLOW_LIMIT = 15;
 export const SHIELD_CONVERT_TO_DAMAGE = 10;
@@ -59,14 +61,14 @@ function rollHit(classId) {
   if (classId === 'rage_hero') return rollHitRageHero();
   switch (classId) {
     case 'knight':
-      return { shield: 1.5, shieldDisplay: 1.5 };
+      return { shield: 2.0, shieldDisplay: 2.0 };
     case 'warrior':
-      return { damage: 0.8, shield: 0.8, damageDisplay: 0.8, shieldDisplay: 0.8 };
+      return { damage: 1.5, damageDisplay: 1.5 };
     case 'mage':
-      return { damage: 1.4, damageDisplay: 1.4 };
+      return { damage: 1.6, damageDisplay: 1.6 };
     case 'assassin': {
       const crit = Math.random() < ASSASSIN_CRIT_RATE;
-      const base = 1.2;
+      const base = 1.3;
       const amount = crit ? base * 2 : base;
       return { damage: amount, damageDisplay: amount, crit };
     }
@@ -75,7 +77,7 @@ function rollHit(classId) {
   }
 }
 
-/** Boss 三回合循環 */
+/** Boss 三回合循環（雙人：10 / 10吸血 / 18蓄力） */
 export function getBossRoundInfo(bossRound, isSolo = false) {
   if (isSolo) {
     if (bossRound % 3 === 0) {
@@ -88,12 +90,12 @@ export function getBossRoundInfo(bossRound, isSolo = false) {
   }
 
   if (bossRound % 3 === 0) {
-    return { type: 'ultimate', rawDamage: 22, label: '蓄力重擊', sucking: false };
+    return { type: 'ultimate', rawDamage: 18, label: '蓄力重擊', sucking: false };
   }
   if (bossRound % 3 === 2) {
     return { type: 'lifesteal', rawDamage: 10, label: '吸血撕咬', sucking: true };
   }
-  return { type: 'normal', rawDamage: 12, label: '普通攻擊', sucking: false };
+  return { type: 'normal', rawDamage: 10, label: '普通攻擊', sucking: false };
 }
 
 function sumHits(hits, key) {
@@ -140,11 +142,24 @@ function applyMultToHits(hits, mult, critFlag = false) {
   }));
 }
 
+/** 碎甲加成 — 本回合玩家對 Boss 傷害 +3 */
+export function applyArmorBreakBonus(hits, combat) {
+  if (!combat.bossArmorBreak || !hits.length) return hits;
+  const boosted = hits.map((h) => ({ ...h }));
+  const last = boosted[boosted.length - 1];
+  last.amount += ARMOR_BREAK_BONUS;
+  last.display = last.amount;
+  return boosted;
+}
+
 /** 結算用傷害命中列表 */
-export function getDamageHitsForResolve(player, isSolo = false) {
-  const hits = (player.damageHits || []).map((h) => ({ ...h }));
+export function getDamageHitsForResolve(player, combat, isSolo = false) {
+  let hits = (player.damageHits || []).map((h) => ({ ...h }));
   if (isSolo && player.soloBonuses?.damageMult > 1) {
-    return applyMultToHits(hits, player.soloBonuses.damageMult, player.soloBonuses.mageCrit);
+    hits = applyMultToHits(hits, player.soloBonuses.damageMult, player.soloBonuses.mageCrit);
+  }
+  if (!isSolo) {
+    hits = applyArmorBreakBonus(hits, combat);
   }
   return hits;
 }
@@ -176,15 +191,32 @@ export function getRoundShieldTotal(combat) {
   return Math.max(0, raw - (combat.roundShieldPenalty || 0));
 }
 
-function checkMageDebuff(players, isSolo) {
+function getKnightRoundShield(combat) {
+  const knight = combat.players.find((p) => p.class?.id === 'knight');
+  if (!knight) return 0;
+  return getPlayerShieldTotal(knight, combat.isSolo);
+}
+
+function checkMageFreeze(players, isSolo) {
   if (isSolo) return false;
-  for (const p of players) {
-    if (p.class?.id === 'mage' && (p.roundScore || 0) >= MAGE_DEBUFF_THRESHOLD
-      && Math.random() < MAGE_DEBUFF_RATE) {
-      return true;
-    }
+  return players.some(
+    (p) => p.class?.id === 'mage' && (p.roundScore || 0) >= MAGE_FREEZE_THRESHOLD,
+  );
+}
+
+function checkWarriorArmorBreak(players, isSolo) {
+  if (isSolo) return false;
+  return players.some(
+    (p) => p.class?.id === 'warrior' && (p.roundScore || 0) >= WARRIOR_ARMOR_BREAK_THRESHOLD,
+  );
+}
+
+function applyBossAttackModifiers(rawDamage, combat) {
+  let damage = rawDamage;
+  if (combat.bossFreezeReduction > 0) {
+    damage = Math.max(0, damage - combat.bossFreezeReduction);
   }
-  return false;
+  return damage;
 }
 
 /**
@@ -208,28 +240,31 @@ export function computeBattleResult(combat, bossRound) {
 
   const totalDamage = players.reduce((s, p) => s + p.damage, 0);
   const totalShield = players.reduce((s, p) => s + p.shield, 0);
-  const nextBossDebuff = checkMageDebuff(combat.players, combat.isSolo);
+  const mageFreezeTriggered = checkMageFreeze(combat.players, combat.isSolo);
 
   const roundInfo = getBossRoundInfo(bossRound, combat.isSolo);
-  let bossRawDamage = roundInfo.rawDamage;
-  const bossDebuffApplied = combat.bossIsDebuffed;
-
-  if (bossDebuffApplied) bossRawDamage *= 0.5;
+  let bossRawDamage = applyBossAttackModifiers(roundInfo.rawDamage, combat);
+  const freezeApplied = combat.bossFreezeReduction > 0;
 
   let finalDamageToHero = Math.max(0, bossRawDamage - totalShield);
   finalDamageToHero = Math.round(finalDamageToHero);
 
+  const knightShield = getKnightRoundShield(combat);
+  const thornsDamage = knightShield > 0 ? Math.round(knightShield) : 0;
+
   let bossHeal = 0;
-  if (roundInfo.sucking) bossHeal = Math.round(bossRawDamage);
+  if (roundInfo.sucking) bossHeal = finalDamageToHero;
 
   return {
     players,
     damageDealt: totalDamage,
     shieldGenerated: totalShield,
     damageReceived: finalDamageToHero,
+    thornsDamage,
     bossHeal,
-    debuffTriggered: nextBossDebuff,
-    bossDebuffApplied,
+    mageFreezeTriggered,
+    freezeApplied,
+    warriorArmorBreakTriggered: checkWarriorArmorBreak(combat.players, combat.isSolo),
     bossRound: roundInfo,
     bossRawDamage: roundInfo.rawDamage,
     bossFinalDamage: bossRawDamage,
@@ -247,27 +282,33 @@ export function computeBossPhase(combat, bossRound) {
     totalShield -= SHIELD_CONVERT_TO_DAMAGE;
   }
 
-  const nextBossDebuff = checkMageDebuff(combat.players, combat.isSolo);
+  const mageFreezeTriggered = checkMageFreeze(combat.players, combat.isSolo);
+  const warriorArmorBreakTriggered = checkWarriorArmorBreak(combat.players, combat.isSolo);
 
   const roundInfo = getBossRoundInfo(bossRound, combat.isSolo);
-  let bossRawDamage = roundInfo.rawDamage;
-  const bossDebuffApplied = combat.bossIsDebuffed;
-
-  if (bossDebuffApplied) bossRawDamage *= 0.5;
+  let bossRawDamage = applyBossAttackModifiers(roundInfo.rawDamage, combat);
+  const freezeApplied = combat.bossFreezeReduction > 0;
 
   let finalDamageToHero = Math.max(0, bossRawDamage - totalShield);
   finalDamageToHero = Math.round(finalDamageToHero);
 
+  const knightShield = getKnightRoundShield(combat);
+  const thornsDamage = knightShield > 0 ? Math.round(knightShield) : 0;
+
   let bossHeal = 0;
-  if (roundInfo.sucking) bossHeal = Math.round(bossRawDamage);
+  if (roundInfo.sucking && finalDamageToHero > 0) {
+    bossHeal = finalDamageToHero;
+  }
 
   return {
     shieldGenerated: totalShield,
     overflowDamage,
     damageReceived: finalDamageToHero,
+    thornsDamage,
     bossHeal,
-    debuffTriggered: nextBossDebuff,
-    bossDebuffApplied,
+    mageFreezeTriggered,
+    freezeApplied,
+    warriorArmorBreakTriggered,
     bossRound: roundInfo,
     bossFinalDamage: bossRawDamage,
     blocked: Math.max(0, bossRawDamage - finalDamageToHero),
@@ -275,8 +316,16 @@ export function computeBossPhase(combat, bossRound) {
 }
 
 export function applyBossPhaseResult(combat, result) {
-  if (result.bossDebuffApplied) combat.bossIsDebuffed = false;
-  if (result.debuffTriggered) combat.bossIsDebuffed = true;
+  if (result.freezeApplied) combat.bossFreezeReduction = 0;
+  if (result.mageFreezeTriggered) combat.bossFreezeReduction = MAGE_FREEZE_REDUCTION;
+}
+
+export function prepareNextRound(combat, result) {
+  if (result.warriorArmorBreakTriggered) {
+    combat.bossArmorBreak = true;
+  } else {
+    combat.bossArmorBreak = false;
+  }
 }
 
 export class CombatState {
@@ -302,7 +351,8 @@ export class CombatState {
 
     this.players = [];
     this.round = 0;
-    this.bossIsDebuffed = false;
+    this.bossFreezeReduction = 0;
+    this.bossArmorBreak = false;
     this.roundShieldPenalty = 0;
     this.battleTotalDamage = 0;
     this.battleTotalShield = 0;
@@ -365,5 +415,10 @@ export class CombatState {
 
   getTeamHpPercent() {
     return (this.teamHp / this.teamMaxHp) * 100;
+  }
+
+  /** 是否處於寒冰凍結（下輪 Boss 攻擊 -4） */
+  get bossIsDebuffed() {
+    return this.bossFreezeReduction > 0;
   }
 }

@@ -14,6 +14,7 @@ import {
   getDamageHitsForResolve,
   getShieldHitsForResolve,
   getRoundShieldTotal,
+  prepareNextRound,
   ROUND_DURATION,
 } from '@/combat.js';
 import { assignFormationSlots } from '@/models-config.js';
@@ -380,14 +381,12 @@ export class Game {
       return;
     }
 
-    if (cls.role === 'tank' || cls.role === 'hybrid') {
+    if (cls.role === 'tank') {
       this._updateRoundShield();
     }
 
     if (cls.role === 'dps') {
       this.scene3d.playHeroAction(cls.id, cls.id === 'assassin' ? 'attack' : 'cast');
-    } else if (cls.role === 'hybrid') {
-      this.scene3d.playHeroAction(cls.id, 'attack');
     }
   }
 
@@ -471,7 +470,7 @@ export class Game {
     }
 
     const isSolo = this.combat.isSolo;
-    const damageHits = getDamageHitsForResolve(player, isSolo);
+    const damageHits = getDamageHitsForResolve(player, this.combat, isSolo);
     const shieldHits = getShieldHitsForResolve(player, isSolo);
     const totalDamage = damageHits.reduce((s, h) => s + h.amount, 0);
     const totalShield = shieldHits.reduce((s, h) => s + h.amount, 0);
@@ -510,7 +509,7 @@ export class Game {
 
     const preview = getBossRoundInfo(this.combat.round, this.combat.isSolo);
     let bossHint = `👹 Boss 準備 ${preview.label}（${preview.rawDamage} 傷）`;
-    if (this.combat.bossIsDebuffed) bossHint += ' — 寒冰凍結生效，傷害減半！';
+    if (this.combat.bossIsDebuffed) bossHint += ' — 寒冰凍結生效，攻擊 -4！';
     indicator.textContent = bossHint;
     await delay(700);
 
@@ -518,7 +517,7 @@ export class Game {
 
     if (!this.combat.victory && result.overflowDamage > 0) {
       indicator.textContent = '🛡️ 盾甲超過15！10點轉化為攻擊！';
-      const attacker = this.selectedClasses.find((c) => c.role === 'tank' || c.role === 'hybrid')
+      const attacker = this.selectedClasses.find((c) => c.role === 'tank' || c.role === 'dps')
         || this.selectedClasses[0];
       await this.scene3d.playHeroAttack(attacker.id, result.overflowDamage);
       this.combat.enemyHp = Math.max(0, this.combat.enemyHp - result.overflowDamage);
@@ -550,19 +549,40 @@ export class Game {
 
       if (result.bossHeal > 0) {
         indicator.textContent = `👹 Boss 吸血回復 ${Math.round(result.bossHeal)}！`;
-        this.combat.enemyHp += result.bossHeal;
+        this.combat.enemyHp = Math.min(
+          this.combat.enemyMaxHp,
+          this.combat.enemyHp + result.bossHeal,
+        );
         await this.scene3d.playBossHeal(result.bossHeal);
         this._updateHpBar();
+      }
+
+      if (result.thornsDamage > 0) {
+        const knight = this.selectedClasses.find((c) => c.id === 'knight');
+        if (knight) {
+          indicator.textContent = `🛡️ 聖光反傷盾！反彈 ${result.thornsDamage} 點！`;
+          await this.scene3d.playHeroAttack(knight.id, result.thornsDamage);
+          this.combat.enemyHp = Math.max(0, this.combat.enemyHp - result.thornsDamage);
+          this.combat.battleTotalDamage += result.thornsDamage;
+          this._updateHpBar();
+          if (this.combat.enemyHp <= 0) this.combat.victory = true;
+          await delay(600);
+        }
       }
     }
 
     applyBossPhaseResult(this.combat, result);
     this._updateBossDebuffIcon();
 
-    if (result.debuffTriggered) {
-      indicator.textContent = '🔮 法師寒冰凍結！下回合 Boss 傷害減半';
+    if (result.mageFreezeTriggered) {
+      indicator.textContent = '🔮 法師寒冰凍結！下回合 Boss 攻擊 -4';
       this._updateBossDebuffIcon();
       await delay(800);
+    }
+
+    if (result.warriorArmorBreakTriggered) {
+      indicator.textContent = '⚔️ 戰士碎甲重擊！下回合 Boss 額外 +3 傷害';
+      await delay(700);
     }
 
     if (this.combat.victory) {
@@ -576,13 +596,18 @@ export class Game {
       return;
     }
 
+    prepareNextRound(this.combat, result);
     this.combat.startNewRound();
     this.turnOrder = this._getTurnOrder();
     this.currentTurnStep = 0;
     this._resetRoundUI();
 
-    const nextBoss = getBossRoundInfo(this.combat.round);
-    indicator.textContent = `第 ${this.combat.round} 回合 — Boss 將發動${nextBoss.label}`;
+    const nextBoss = getBossRoundInfo(this.combat.round, this.combat.isSolo);
+    if (this.combat.bossArmorBreak) {
+      indicator.textContent = `第 ${this.combat.round} 回合 — 碎甲生效！Boss 將發動${nextBoss.label}`;
+    } else {
+      indicator.textContent = `第 ${this.combat.round} 回合 — Boss 將發動${nextBoss.label}`;
+    }
     await delay(1000);
     this._beginRoundInput();
   }
