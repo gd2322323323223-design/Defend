@@ -14,19 +14,29 @@ export class EquipmentManager {
 
   findBone(root, side = 'right') {
     const names = HAND_BONES[side] || HAND_BONES.right;
+    const slotNames = names.filter((n) => n.includes('slot'));
+    const boneNames = names.filter((n) => !n.includes('slot'));
     let found = null;
+
+    const matchName = (node, candidates) => {
+      const n = node.name.toLowerCase();
+      return candidates.some((name) => {
+        const key = name.toLowerCase();
+        return n === key || n.includes(key);
+      });
+    };
+
+    // Kaykit 模型優先掛在 handslot（專用裝備掛點，非骨骼）
+    root.traverse((node) => {
+      if (found) return;
+      if (matchName(node, slotNames)) found = node;
+    });
+    if (found) return found;
 
     root.traverse((node) => {
       if (found) return;
-      if (node.isBone || node.type === 'Bone') {
-        for (const name of names) {
-          if (node.name.toLowerCase() === name.toLowerCase()
-            || node.name.toLowerCase().includes(name.toLowerCase())) {
-            found = node;
-            return;
-          }
-        }
-      }
+      if (!node.isBone && node.type !== 'Bone') return;
+      if (matchName(node, boneNames)) found = node;
     });
 
     return found;
@@ -54,20 +64,33 @@ export class EquipmentManager {
 
     const bone = this.findBone(heroModel, config.attachSide);
 
+    equipmentModel.traverse((child) => {
+      if (child.isMesh && child.material) child.material.fog = false;
+    });
+
     if (bone) {
       const { offset, rotation, scale } = config;
       equipmentModel.position.set(offset.x, offset.y, offset.z);
       equipmentModel.rotation.set(rotation.x, rotation.y, rotation.z);
       equipmentModel.scale.setScalar(scale);
       bone.add(equipmentModel);
-      console.log(`裝備「${config.name}」已掛載至骨骼: ${bone.name}`);
     } else {
       heroModel.add(equipmentModel);
-      console.warn(`找不到${config.attachSide}手骨骼，裝備掛載至模型根節點`);
+      console.warn(`找不到${config.attachSide}手掛點，裝備掛載至模型根節點: ${equipmentId}`);
     }
 
     this.attached.set(instanceKey, equipmentModel);
     return equipmentModel;
+  }
+
+  async attachEquipmentList(heroModel, equipmentIds, keyPrefix) {
+    const list = Array.isArray(equipmentIds) ? equipmentIds : [equipmentIds];
+    const results = [];
+    for (const id of list) {
+      if (!id) continue;
+      results.push(await this.attachEquipment(heroModel, id, `${keyPrefix}_${id}`));
+    }
+    return results;
   }
 
   _createPlaceholderEquipment() {

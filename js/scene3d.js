@@ -160,11 +160,14 @@ export class Scene3D {
     return clips.find((a) => a.name.toLowerCase().includes(actionName.toLowerCase()));
   }
 
-  async loadEnemy(path) {
+  async loadEnemy(path, defaultEquipment = null) {
     const model = await this._loadModel(path, 'enemy', 'enemy');
     if (model) {
       this._placeEnemy();
       this._playAnimation('enemy', 'idle', { loop: true });
+      if (defaultEquipment) {
+        await this.equipmentManager.attachEquipmentList(model, defaultEquipment, 'enemy');
+      }
     }
     return model;
   }
@@ -178,11 +181,7 @@ export class Scene3D {
       if (!this.heroIds.includes(classId)) this.heroIds.push(classId);
 
       if (defaultEquipment) {
-        await this.equipmentManager.attachEquipment(
-          model,
-          defaultEquipment,
-          `${classId}_${defaultEquipment}`,
-        );
+        await this.equipmentManager.attachEquipmentList(model, defaultEquipment, classId);
       }
     }
     return model;

@@ -55,7 +55,7 @@ export class Game {
   init() {
     const canvas = document.getElementById('scene-canvas');
     this.scene3d = new Scene3D(canvas);
-    this.scene3d.loadEnemy(ENEMY.modelPath);
+    this.scene3d.loadEnemy(ENEMY.modelPath, ENEMY.defaultEquipment);
     this._showScreen('screen-menu');
   }
 
@@ -141,7 +141,7 @@ export class Game {
       this._showScreen('screen-taunt');
       this.scene3d.clearScene();
 
-      const loadEnemyTask = this.scene3d.loadEnemy(ENEMY.modelPath);
+      const loadEnemyTask = this.scene3d.loadEnemy(ENEMY.modelPath, ENEMY.defaultEquipment);
       countdownEl.textContent = '2 秒後進入戰鬥…';
       await delay(1000);
       countdownEl.textContent = '1 秒後進入戰鬥…';

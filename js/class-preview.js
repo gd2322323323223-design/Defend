@@ -111,7 +111,7 @@ export class ClassPreviewManager {
       scene.add(model);
 
       if (cls.defaultEquipment) {
-        await this.equipmentManager.attachEquipment(
+        await this.equipmentManager.attachEquipmentList(
           model,
           cls.defaultEquipment,
           `preview_${cls.id}`,

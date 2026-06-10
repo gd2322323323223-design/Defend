@@ -49,7 +49,7 @@ export const CLASSES = {
     role: 'tank',
     desc: '1 能量 = 1.5 護盾（點 8 次 = 12 盾）',
     modelPath: `${HEROES}/Knight.glb`,
-    defaultEquipment: 'shield_round',
+    defaultEquipment: ['sword_1handed', 'shield_round'],
     animBlock: 'block',
     animIdle: 'idle',
   },
@@ -93,4 +93,5 @@ export const ENEMY = {
   icon: '👹',
   maxHp: 100,
   modelPath: `${SKELETONS}/Skeleton_Warrior.glb`,
+  defaultEquipment: ['skeleton_blade', 'skeleton_shield'],
 };

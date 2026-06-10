@@ -65,10 +65,12 @@ export const HAND_BONES = {
   left: ['handslot.l', 'hand.l', 'Hand_L', 'mixamorigLeftHand'],
 };
 
+const SKELETON_ASSETS = `${CHAR_BASE}/Skeletons/assets/gltf`;
+
 export const EQUIPMENT_CATALOG = {
-  arrow_crossbow: {
-    name: '弩箭十字弓',
-    path: `${ASSETS}/arrow_crossbow_bundle.gltf`,
+  sword_1handed: {
+    name: '單手劍',
+    path: `${ASSETS}/sword_1handed.gltf`,
     attachSide: 'right',
     offset: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
@@ -79,7 +81,7 @@ export const EQUIPMENT_CATALOG = {
     path: `${ASSETS}/shield_round.gltf`,
     attachSide: 'left',
     offset: { x: 0, y: 0, z: 0 },
-    rotation: { x: 0, y: Math.PI / 2, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
     scale: 1,
   },
   staff: {
@@ -102,6 +104,30 @@ export const EQUIPMENT_CATALOG = {
     name: '雙手斧',
     path: `${ASSETS}/axe_2handed.gltf`,
     attachSide: 'right',
+    offset: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: 1,
+  },
+  arrow_crossbow: {
+    name: '弩箭十字弓',
+    path: `${ASSETS}/arrow_crossbow_bundle.gltf`,
+    attachSide: 'right',
+    offset: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: 1,
+  },
+  skeleton_blade: {
+    name: '骷髏刃',
+    path: `${SKELETON_ASSETS}/Skeleton_Blade.gltf`,
+    attachSide: 'right',
+    offset: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: 1,
+  },
+  skeleton_shield: {
+    name: '骷髏盾',
+    path: `${SKELETON_ASSETS}/Skeleton_Shield_Large_A.gltf`,
+    attachSide: 'left',
     offset: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
     scale: 1,
