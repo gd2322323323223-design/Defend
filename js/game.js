@@ -22,12 +22,31 @@ import { Scene3D } from '@/scene3d.js';
 import { ClassPreviewManager } from '@/class-preview.js';
 import { VictoryDisplay } from '@/victory-display.js';
 import { delay } from '@/vfx.js';
+import {
+  getSettings,
+  updateSettings,
+  loadSettingsFromURL,
+  getDifficulty,
+  getRadicalTheme,
+  getRoundDuration,
+  getBossHpOverride,
+  getTeamHpOverride,
+} from '@/settings.js';
+import { sound } from '@/audio.js';
+import { getSynergyHint, getClassPickHint } from '@/class-synergy.js';
+import {
+  getBossAttackBanner,
+  getRoundTacticalHint,
+  getEducationalRecap,
+} from '@/tactical-hints.js';
+import { BattleStats } from '@/battle-stats.js';
 
 export class Game {
   constructor() {
     this.mode = null;
     this.selectedClasses = [];
     this.combat = new CombatState();
+    this.battleStats = new BattleStats();
     this.matrices = [];
     this.timerInterval = null;
     this.timeLeft = ROUND_DURATION;
@@ -45,23 +64,157 @@ export class Game {
   }
 
   _bindUI() {
+    const unlockAudio = () => {
+      sound.unlock();
+      document.removeEventListener('pointerdown', unlockAudio);
+      document.removeEventListener('keydown', unlockAudio);
+    };
+    document.addEventListener('pointerdown', unlockAudio);
+    document.addEventListener('keydown', unlockAudio);
+
     document.querySelectorAll('[data-mode]').forEach((btn) => {
       btn.addEventListener('click', () => this._selectMode(btn.dataset.mode));
     });
 
     document.getElementById('btn-start-battle').addEventListener('click', () => this._startTaunt());
     document.getElementById('btn-replay').addEventListener('click', () => this._goToMenu());
+    document.getElementById('btn-teacher-toggle')?.addEventListener('click', () => {
+      document.getElementById('teacher-panel')?.classList.toggle('hidden');
+    });
+    document.getElementById('btn-teacher-apply')?.addEventListener('click', () => this._applyTeacherSettings());
+    document.getElementById('btn-safari-check')?.addEventListener('click', () => {
+      document.getElementById('safari-check-modal')?.classList.remove('hidden');
+    });
+    document.getElementById('btn-safari-close')?.addEventListener('click', () => {
+      document.getElementById('safari-check-modal')?.classList.add('hidden');
+    });
+  }
+
+  _applyTeacherSettings() {
+    const diff = document.getElementById('setting-difficulty')?.value || 'normal';
+    const radical = document.getElementById('setting-radical')?.value || '火';
+    const roundTime = Number(document.getElementById('setting-round-time')?.value) || null;
+    const bossHp = Number(document.getElementById('setting-boss-hp')?.value) || null;
+    const teamHp = Number(document.getElementById('setting-team-hp')?.value) || null;
+    updateSettings({
+      difficulty: diff,
+      radical,
+      roundDuration: roundTime,
+      bossHp,
+      teamHp,
+      spectator: document.getElementById('setting-spectator')?.checked ?? false,
+      classHints: document.getElementById('setting-class-hints')?.checked ?? true,
+      tacticalHints: document.getElementById('setting-tactical-hints')?.checked ?? true,
+      teacherMode: true,
+    });
+    this._syncSettingsUI();
+    document.getElementById('teacher-panel')?.classList.add('hidden');
+  }
+
+  _syncSettingsUI() {
+    const s = getSettings();
+    const diff = getDifficulty();
+    const theme = getRadicalTheme();
+    document.getElementById('setting-difficulty')?.setAttribute('value', s.difficulty);
+    const diffEl = document.getElementById('setting-difficulty');
+    if (diffEl) diffEl.value = s.difficulty;
+    const radEl = document.getElementById('setting-radical');
+    if (radEl) radEl.value = s.radical;
+    const rt = document.getElementById('setting-round-time');
+    if (rt) rt.value = s.roundDuration || '';
+    const bh = document.getElementById('setting-boss-hp');
+    if (bh) bh.value = s.bossHp || '';
+    const th = document.getElementById('setting-team-hp');
+    if (th) th.value = s.teamHp || '';
+    const spec = document.getElementById('setting-spectator');
+    if (spec) spec.checked = s.spectator;
+    const ch = document.getElementById('setting-class-hints');
+    if (ch) ch.checked = s.classHints;
+    const thint = document.getElementById('setting-tactical-hints');
+    if (thint) thint.checked = s.tacticalHints;
+    const label = document.getElementById('menu-radical-label');
+    if (label) label.textContent = `本局字部：${theme.label} · ${diff.label}`;
+    if (s.teacherMode) {
+      document.getElementById('teacher-panel')?.classList.remove('hidden');
+    }
+  }
+
+  _updateLoadProgress(fraction, done, total) {
+    const fill = document.getElementById('load-progress-fill');
+    const text = document.getElementById('load-progress-text');
+    const pct = Math.round(fraction * 100);
+    if (fill) fill.style.width = `${pct}%`;
+    if (text) {
+      text.textContent = fraction >= 1
+        ? '資源已就緒 ✓'
+        : `資源載入中… ${pct}%（${done}/${total}）`;
+    }
+    if (fraction >= 1) {
+      document.getElementById('load-progress-wrap')?.classList.add('loaded');
+    }
+  }
+
+  _updateBossBanner() {
+    const el = document.getElementById('boss-next-banner');
+    if (!el || !this.combat.round) return;
+    el.textContent = getBossAttackBanner(this.combat.round, this.combat);
+  }
+
+  _updateTacticalHint(cls, score) {
+    const bar = document.getElementById('tactical-hint-bar');
+    if (!bar || !getSettings().tacticalHints) {
+      bar?.classList.add('hidden');
+      return;
+    }
+    bar.textContent = getRoundTacticalHint(this.combat, cls, score);
+    bar.classList.remove('hidden');
+  }
+
+  _updateSynergyHint() {
+    const el = document.getElementById('class-synergy-hint');
+    if (!el || !getSettings().classHints || this.mode !== 'dual') {
+      el?.classList.add('hidden');
+      return;
+    }
+    const ids = this.selectedClasses.map((c) => c.id);
+    if (ids.length === 2) {
+      el.textContent = getSynergyHint(ids);
+      el.classList.remove('hidden');
+    } else if (ids.length === 1) {
+      el.textContent = '再選一個職業，查看協同搭配建議';
+      el.classList.remove('hidden');
+    } else {
+      el.classList.add('hidden');
+    }
+  }
+
+  _renderEducationalRecap() {
+    const el = document.getElementById('result-edu-recap');
+    if (!el) return;
+    el.innerHTML = getEducationalRecap(
+      this.battleStats,
+      this.combat,
+      this.selectedClasses,
+      getRadicalTheme().label,
+    );
   }
 
   init() {
+    loadSettingsFromURL();
+    this._syncSettingsUI();
     const canvas = document.getElementById('scene-canvas');
     this.scene3d = new Scene3D(canvas);
+    this.scene3d.preloadEssentials((f, d, t) => this._updateLoadProgress(f, d, t));
     this.scene3d.loadEnemy(ENEMY.modelPath, ENEMY.defaultEquipment);
     this._showScreen('screen-menu');
   }
 
   _selectMode(mode) {
+    sound.unlock();
     this.mode = mode;
+    const app = document.getElementById('app');
+    app.classList.remove('mode-solo', 'mode-dual');
+    app.classList.add(mode === 'single' ? 'mode-solo' : 'mode-dual');
     if (mode === 'single') {
       this.selectedClasses = [RAGE_HERO];
       this._startTaunt();
@@ -115,6 +268,7 @@ export class Game {
 
     document.getElementById('btn-start-battle').disabled =
       this.selectedClasses.length < maxPlayers;
+    this._updateSynergyHint();
   }
 
   _getTurnOrder() {
@@ -160,7 +314,11 @@ export class Game {
   }
 
   async _startBattle() {
-    this.combat.reset(this.mode);
+    this.battleStats.reset();
+    this.combat.reset(this.mode, {
+      bossHp: getBossHpOverride(),
+      teamHp: getTeamHpOverride(),
+    });
     this.selectedClasses.forEach((cls) => this.combat.addPlayer(cls));
 
     const formation = assignFormationSlots(this.selectedClasses);
@@ -189,7 +347,9 @@ export class Game {
     this.currentTurnStep = 0;
 
     this._setupBattleUI();
+    this._updateBossBanner();
     this._showScreen('screen-battle');
+    document.getElementById('app').classList.toggle('spectator-mode', getSettings().spectator);
     this._beginRoundInput();
   }
 
@@ -303,11 +463,14 @@ export class Game {
 
     const indicator = document.getElementById('turn-indicator');
     indicator.classList.remove('hidden');
+    const radicalLabel = getRadicalTheme().label;
     if (this.combat.isSolo) {
-      indicator.textContent = `第 ${this.combat.round} 回合 — ${cls.icon} 看到「火」字就瘋狂點擊！`;
+      indicator.textContent = `第 ${this.combat.round} 回合 — ${cls.icon} 看到「${radicalLabel}」字就瘋狂點擊！`;
     } else {
       indicator.textContent = `第 ${this.combat.round} 回合 — ${this._getPhaseLabel(cls)}階段 — ${cls.icon} ${cls.name}`;
     }
+    this._updateTacticalHint(cls, 0);
+    this._updateBossBanner();
 
     const matrixEl = document.getElementById(`matrix-p${playerIdx + 1}`);
     matrixEl.innerHTML = '';
@@ -334,22 +497,27 @@ export class Game {
     const matrixEl = document.getElementById(`matrix-p${playerIdx + 1}`);
     matrixEl.classList.remove('hidden');
 
+    const diff = getDifficulty();
     const matrix = new WordMatrix(matrixEl, {
-      radical: '火',
-      onCorrect: () => this._onCorrect(playerIdx, cls),
+      radical: getRadicalTheme().radical,
+      theme: getRadicalTheme(),
+      targetCells: diff.targetCells,
+      wrongCooldownMs: diff.wrongCooldownMs,
+      onCorrect: (char) => this._onCorrect(playerIdx, cls, char),
       onWrong: () => this._onWrong(playerIdx, cls),
     });
     matrix.render();
     this.matrices.push(matrix);
 
+    const roundSec = getRoundDuration();
     const indicator = document.getElementById('turn-indicator');
-    indicator.textContent = `第 ${this.combat.round} 回合 — ${cls.icon} ${cls.name} — 限時 ${ROUND_DURATION} 秒`;
+    indicator.textContent = `第 ${this.combat.round} 回合 — ${cls.icon} ${cls.name} — 限時 ${roundSec} 秒`;
 
-    this._startZoneTimer(playerIdx, () => this._endTurn());
+    this._startZoneTimer(playerIdx, () => this._endTurn(), roundSec);
   }
 
-  _startZoneTimer(playerIdx, onEnd) {
-    this.timeLeft = ROUND_DURATION;
+  _startZoneTimer(playerIdx, onEnd, duration = null) {
+    this.timeLeft = duration ?? getRoundDuration();
     const timerEl = document.getElementById(`p${playerIdx + 1}-zone-timer`);
     timerEl.textContent = this.timeLeft;
     timerEl.classList.remove('hidden', 'urgent');
@@ -367,9 +535,12 @@ export class Game {
     }, 1000);
   }
 
-  _onCorrect(playerIdx, cls) {
+  _onCorrect(playerIdx, cls, char) {
     this.combat.applyCorrect(playerIdx, cls);
     const player = this.combat.players[playerIdx];
+    this.battleStats.recordCorrect(char, playerIdx);
+    sound.playCorrect();
+    this._updateTacticalHint(cls, player.roundScore);
 
     const scoreEl = document.getElementById(`p${playerIdx + 1}-score`);
     scoreEl.textContent = `答對: ${player.roundScore}`;
@@ -391,6 +562,7 @@ export class Game {
   }
 
   _onWrong(playerIdx, cls) {
+    sound.playWrong();
     if (cls.role === 'tank') {
       this.scene3d.playHeroAction(cls.id, 'block');
     }
@@ -476,6 +648,10 @@ export class Game {
     const totalShield = shieldHits.reduce((s, h) => s + h.amount, 0);
 
     if (damageHits.length) {
+      if (damageHits.some((h) => h.crit)) {
+        this.battleStats.recordCrit();
+        sound.playCrit();
+      }
       indicator.classList.remove('hidden');
       indicator.textContent = damageHits.some((h) => h.crit)
         ? `⚔️ ${cls.icon} ${cls.name} 暴擊！`
@@ -540,6 +716,7 @@ export class Game {
           result.bossRound.type,
           { blocked: result.blocked },
         );
+        sound.playBossAttack();
         if (result.damageReceived > 0) {
           this.combat.teamHp = Math.max(0, this.combat.teamHp - result.damageReceived);
           this._updateTeamHp();
@@ -560,6 +737,8 @@ export class Game {
       if (result.thornsDamage > 0) {
         const knight = this.selectedClasses.find((c) => c.id === 'knight');
         if (knight) {
+          this.battleStats.recordThorns(result.thornsDamage);
+          sound.playThorns();
           indicator.textContent = `🛡️ 聖光反傷盾！反彈 ${result.thornsDamage} 點！`;
           await this.scene3d.playHeroAttack(knight.id, result.thornsDamage);
           this.combat.enemyHp = Math.max(0, this.combat.enemyHp - result.thornsDamage);
@@ -575,12 +754,16 @@ export class Game {
     this._updateBossDebuffIcon();
 
     if (result.mageFreezeTriggered) {
+      this.battleStats.recordFreeze();
+      sound.playFreeze();
       indicator.textContent = '🔮 法師寒冰凍結！下回合 Boss 攻擊 -4';
       this._updateBossDebuffIcon();
       await delay(800);
     }
 
     if (result.warriorArmorBreakTriggered) {
+      this.battleStats.recordArmorBreak();
+      sound.playArmorBreak();
       indicator.textContent = '⚔️ 戰士碎甲重擊！下回合 Boss 額外 +3 傷害';
       await delay(700);
     }
@@ -608,6 +791,7 @@ export class Game {
     } else {
       indicator.textContent = `第 ${this.combat.round} 回合 — Boss 將發動${nextBoss.label}`;
     }
+    this._updateBossBanner();
     await delay(1000);
     this._beginRoundInput();
   }
@@ -645,6 +829,7 @@ export class Game {
     await delay(900);
 
     await this.scene3d.playBossDefeatSequence();
+    sound.playVictory();
     await this._showVictory();
   }
 
@@ -656,11 +841,9 @@ export class Game {
 
     document.getElementById('equipment-unlock').classList.remove('hidden');
     document.getElementById('result-title').textContent = '🎉 勝利！魔王已被擊敗！';
+    this._renderEducationalRecap();
     document.getElementById('result-stats').innerHTML = `
-      <p>經過 ${this.combat.round} 回合</p>
-      <p>累計護盾: ${Math.round(this.combat.battleTotalShield)}</p>
-      <p>累計傷害: ${Math.round(this.combat.battleTotalDamage)}</p>
-      <p>答對字數: ${this.combat.players.map((p) => p.correctCount).join(' / ')}</p>
+      <p>答對字數：${this.combat.players.map((p) => p.correctCount).join(' / ')}</p>
     `;
     this._showScreen('screen-result');
     await this.victoryDisplay.show(this.selectedClasses);
@@ -671,10 +854,9 @@ export class Game {
     document.getElementById('turn-indicator').classList.add('hidden');
     document.getElementById('equipment-unlock').classList.add('hidden');
     document.getElementById('result-title').textContent = '💀 戰敗…';
+    this._renderEducationalRecap();
     document.getElementById('result-stats').innerHTML = `
-      <p>經過 ${this.combat.round} 回合後隊伍全滅</p>
-      <p>累計造成傷害: ${Math.round(this.combat.battleTotalDamage)}</p>
-      <p>魔王剩餘 HP: ${Math.round(this.combat.enemyHp)}</p>
+      <p>魔王剩餘 HP：${Math.round(this.combat.enemyHp)}</p>
     `;
     this._showScreen('screen-result');
   }
@@ -684,6 +866,7 @@ export class Game {
     this.victoryDisplay.dispose();
     this._victoryPlaying = false;
     this.combat.reset();
+    this.battleStats.reset();
     this.selectedClasses = [];
     this.turnOrder = [];
     this.currentTurnStep = 0;
@@ -715,6 +898,9 @@ export class Game {
     const teamHp = document.getElementById('team-hp-floating');
     if (bossHp && !isBattle) bossHp.classList.add('hidden');
     if (teamHp) teamHp.classList.toggle('hidden', !isBattle);
+    if (!isBattle) {
+      document.getElementById('app').classList.remove('spectator-mode');
+    }
     if (this.scene3d) {
       this.scene3d.setBattleLayout(isBattle);
     }

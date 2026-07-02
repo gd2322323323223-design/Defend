@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>語文防衛戰 — Defend</title>
-  <link rel="stylesheet" href="css/style.css?v=2.3.0">
+  <link rel="stylesheet" href="css/style.css?v=2.4.0">
 </head>
 <body>
-  <div id="version-badge" class="version-badge" title="遊戲版本">v2.2.3</div>
+  <div id="version-badge" class="version-badge" title="遊戲版本">v2.4.0</div>
   <div id="app">
     <div id="game-shell">
     <!-- 3D 場景背景 -->
@@ -17,15 +17,74 @@
     <!-- 主選單 -->
     <section id="screen-menu" class="screen active">
       <h1 class="game-title">語文防衛戰</h1>
+      <p id="menu-radical-label" class="menu-radical-label">本局字部：火部</p>
+
+      <div id="load-progress-wrap" class="load-progress-wrap">
+        <div class="load-progress-bar"><div id="load-progress-fill" class="load-progress-fill"></div></div>
+        <span id="load-progress-text" class="load-progress-text">資源載入中… 0%</span>
+      </div>
+
       <div class="mode-buttons">
         <button class="btn btn-primary" data-mode="single">狂暴大英雄（單人）</button>
         <button class="btn btn-accent" data-mode="dual">雙人模式</button>
       </div>
+
+      <button type="button" id="btn-teacher-toggle" class="btn btn-ghost">⚙️ 教師設定</button>
+      <button type="button" id="btn-safari-check" class="btn btn-ghost">📋 上課前檢查（iPad/Safari）</button>
+
+      <div id="teacher-panel" class="teacher-panel hidden">
+        <h3>教師後台</h3>
+        <label class="teacher-field">難度
+          <select id="setting-difficulty">
+            <option value="easy">簡單（12秒）</option>
+            <option value="normal" selected>標準（10秒）</option>
+            <option value="hard">困難（8秒）</option>
+          </select>
+        </label>
+        <label class="teacher-field">字部主題
+          <select id="setting-radical">
+            <option value="火" selected>火部</option>
+            <option value="水">水部</option>
+            <option value="木">木部</option>
+            <option value="心">心部</option>
+          </select>
+        </label>
+        <label class="teacher-field">回合秒數（可覆寫）
+          <input type="number" id="setting-round-time" min="5" max="20" placeholder="預設依難度">
+        </label>
+        <label class="teacher-field">Boss 血量
+          <input type="number" id="setting-boss-hp" min="30" max="150" placeholder="預設 75">
+        </label>
+        <label class="teacher-field">隊伍血量
+          <input type="number" id="setting-team-hp" min="10" max="60" placeholder="預設 30">
+        </label>
+        <label class="teacher-check"><input type="checkbox" id="setting-spectator"> 觀戰／投影模式</label>
+        <label class="teacher-check"><input type="checkbox" id="setting-class-hints" checked> 顯示職業協同提示</label>
+        <label class="teacher-check"><input type="checkbox" id="setting-tactical-hints" checked> 顯示戰術預告</label>
+        <button type="button" id="btn-teacher-apply" class="btn btn-primary btn-sm">套用設定</button>
+      </div>
     </section>
+
+    <!-- Safari 上課前檢查 -->
+    <div id="safari-check-modal" class="modal-overlay hidden" role="dialog" aria-label="上課前檢查">
+      <div class="modal-card">
+        <h3>📋 上課前 30 秒檢查</h3>
+        <ul class="checklist">
+          <li>強制重新整理頁面（避免舊版快取）</li>
+          <li>確認右上角版本為 <strong id="check-version">v2.4.0</strong></li>
+          <li>Safari 網址列會遮擋頂部 — 可直向或略向下捲動</li>
+          <li>等待主選單「資源載入 100%」再開始</li>
+          <li>關閉其他分頁，避免 iPad 記憶體不足</li>
+          <li>雙擊縮放已禁用；若畫面異常請重新整理</li>
+        </ul>
+        <button type="button" id="btn-safari-close" class="btn btn-primary">知道了</button>
+      </div>
+    </div>
 
     <!-- 職業選擇 -->
     <section id="screen-class" class="screen">
       <h2>選擇你的職業</h2>
+      <p id="class-synergy-hint" class="class-synergy-hint hidden"></p>
       <div id="class-grid" class="class-grid"></div>
       <button id="btn-start-battle" class="btn btn-primary" disabled>開始迎戰</button>
     </section>
@@ -41,6 +100,8 @@
 
     <!-- 戰鬥畫面：上半 Boss 3D / 下半玩家分屏 -->
     <section id="screen-battle" class="screen">
+      <div id="boss-next-banner" class="boss-next-banner">👹 Boss 下招預告</div>
+      <div id="tactical-hint-bar" class="tactical-hint-bar hidden"></div>
       <div class="battle-layout">
         <div class="boss-zone" id="boss-zone">
           <div class="boss-hud"></div>
@@ -120,6 +181,7 @@
         <canvas id="victory-heroes-canvas"></canvas>
       </div>
       <h2 id="result-title">戰鬥結算</h2>
+      <div id="result-edu-recap" class="result-edu-recap"></div>
       <div id="result-stats" class="result-stats"></div>
       <div id="equipment-unlock" class="equipment-unlock hidden">
         <h3>🎉 傳奇裝備解鎖！</h3>
@@ -135,23 +197,28 @@
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
       "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-      "@/version.js": "./js/version.js?v=2.3.0",
-      "@/game.js": "./js/game.js?v=2.3.0",
-      "@/matrix.js": "./js/matrix.js?v=2.3.0",
-      "@/ai-taunt.js": "./js/ai-taunt.js?v=2.3.0",
-      "@/combat.js": "./js/combat.js?v=2.3.0",
-      "@/asset-cache.js": "./js/asset-cache.js?v=2.3.0",
-      "@/models-config.js": "./js/models-config.js?v=2.3.0",
-      "@/scene3d.js": "./js/scene3d.js?v=2.3.0",
-      "@/vfx.js": "./js/vfx.js?v=2.3.0",
-      "@/hit-effects.js": "./js/hit-effects.js?v=2.3.0",
-      "@/sprite-billboard.js": "./js/sprite-billboard.js?v=2.3.0",
-      "@/equipment.js": "./js/equipment.js?v=2.3.0",
-      "@/class-preview.js": "./js/class-preview.js?v=2.3.0",
-      "@/victory-display.js": "./js/victory-display.js?v=2.3.0"
+      "@/version.js": "./js/version.js?v=2.4.0",
+      "@/settings.js": "./js/settings.js?v=2.4.0",
+      "@/audio.js": "./js/audio.js?v=2.4.0",
+      "@/class-synergy.js": "./js/class-synergy.js?v=2.4.0",
+      "@/tactical-hints.js": "./js/tactical-hints.js?v=2.4.0",
+      "@/battle-stats.js": "./js/battle-stats.js?v=2.4.0",
+      "@/game.js": "./js/game.js?v=2.4.0",
+      "@/matrix.js": "./js/matrix.js?v=2.4.0",
+      "@/ai-taunt.js": "./js/ai-taunt.js?v=2.4.0",
+      "@/combat.js": "./js/combat.js?v=2.4.0",
+      "@/asset-cache.js": "./js/asset-cache.js?v=2.4.0",
+      "@/models-config.js": "./js/models-config.js?v=2.4.0",
+      "@/scene3d.js": "./js/scene3d.js?v=2.4.0",
+      "@/vfx.js": "./js/vfx.js?v=2.4.0",
+      "@/hit-effects.js": "./js/hit-effects.js?v=2.4.0",
+      "@/sprite-billboard.js": "./js/sprite-billboard.js?v=2.4.0",
+      "@/equipment.js": "./js/equipment.js?v=2.4.0",
+      "@/class-preview.js": "./js/class-preview.js?v=2.4.0",
+      "@/victory-display.js": "./js/victory-display.js?v=2.4.0"
     }
   }
   </script>
-  <script type="module" src="js/main.js?v=2.3.0"></script>
+  <script type="module" src="js/main.js?v=2.4.0"></script>
 </body>
 </html>

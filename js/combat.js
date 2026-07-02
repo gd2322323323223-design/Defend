@@ -333,20 +333,20 @@ export class CombatState {
     this.reset('dual');
   }
 
-  reset(gameMode = 'dual') {
+  reset(gameMode = 'dual', overrides = {}) {
     this.gameMode = gameMode;
     this.isSolo = gameMode === 'single';
 
     if (this.isSolo) {
-      this.enemyHp = SOLO_BOSS_HP;
-      this.enemyMaxHp = SOLO_BOSS_HP;
-      this.teamHp = SOLO_HERO_HP;
-      this.teamMaxHp = SOLO_HERO_HP;
+      this.enemyHp = overrides.bossHp ?? SOLO_BOSS_HP;
+      this.enemyMaxHp = overrides.bossHp ?? SOLO_BOSS_HP;
+      this.teamHp = overrides.teamHp ?? SOLO_HERO_HP;
+      this.teamMaxHp = overrides.teamHp ?? SOLO_HERO_HP;
     } else {
-      this.enemyHp = ENEMY.maxHp;
-      this.enemyMaxHp = ENEMY.maxHp;
-      this.teamHp = TEAM_MAX_HP;
-      this.teamMaxHp = TEAM_MAX_HP;
+      this.enemyHp = overrides.bossHp ?? ENEMY.maxHp;
+      this.enemyMaxHp = overrides.bossHp ?? ENEMY.maxHp;
+      this.teamHp = overrides.teamHp ?? TEAM_MAX_HP;
+      this.teamMaxHp = overrides.teamHp ?? TEAM_MAX_HP;
     }
 
     this.players = [];

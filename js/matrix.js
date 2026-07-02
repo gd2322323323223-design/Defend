@@ -1,24 +1,18 @@
 /**
- * 字詞矩陣模組 — 3x3，每次答對全盤刷新，固定 3 個火字
+ * 字詞矩陣模組 — 3x3，支援多字部與難度設定
  */
 
-const FIRE_RADICAL_CHARS = [
-  '火', '炎', '焰', '燒', '煮', '烤', '炒', '炸', '煙', '燈',
-  '爐', '炊', '爆', '烈', '燙', '燭', '焚', '熄', '蒸', '煜',
-  '煉', '熱', '烘', '炙', '燦', '煥', '燼', '燻', '煎', '熬',
-  '熏', '焦', '煤', '炭', '炬', '烙',
-];
+import { getRadicalTheme } from '@/settings.js';
 
-const NON_FIRE_CHARS = [
-  '水', '冰', '江', '河', '湖', '海', '雪', '冷', '凍', '霜',
-  '雨', '雲', '風', '土', '石', '木', '金', '銀', '鐵', '銅',
-  '田', '禾', '米', '豆', '瓜', '果', '花', '草', '樹', '林',
-  '山', '川', '日', '月', '星', '光', '電', '雷', '霧', '露',
+const GENERIC_DISTRACTORS = [
+  '土', '石', '金', '銀', '鐵', '銅', '田', '禾', '米', '豆',
+  '瓜', '果', '山', '川', '日', '月', '星', '光', '電', '雷',
+  '風', '霧', '露', '鳥', '魚', '虫', '馬', '牛', '羊', '犬',
 ];
 
 export const MATRIX_SIZE = 3;
 export const FIRE_CELL_COUNT = 3;
-const COOLDOWN_MS = 500;
+const DEFAULT_COOLDOWN_MS = 500;
 const REFRESH_MS = 220;
 
 export class WordMatrix {
@@ -26,7 +20,11 @@ export class WordMatrix {
     this.container = container;
     this.onCorrect = options.onCorrect || (() => {});
     this.onWrong = options.onWrong || (() => {});
-    this.radical = options.radical || '火';
+    const theme = options.theme || getRadicalTheme();
+    this.radical = options.radical || theme.radical;
+    this.radicalChars = options.radicalChars || theme.chars;
+    this.targetCells = options.targetCells ?? FIRE_CELL_COUNT;
+    this.wrongCooldownMs = options.wrongCooldownMs ?? DEFAULT_COOLDOWN_MS;
     this.cells = [];
     this.cooldown = false;
     this._bindEvents();
@@ -40,7 +38,7 @@ export class WordMatrix {
 
       const char = cell.dataset.word;
       if (this._hasRadical(char)) {
-        this._handleCorrect(cell);
+        this._handleCorrect(cell, char);
       } else {
         this._handleWrong(cell);
       }
@@ -50,14 +48,12 @@ export class WordMatrix {
   }
 
   _hasRadical(char) {
-    if (this.radical === '火') {
-      return FIRE_RADICAL_CHARS.includes(char) || char.includes('火');
-    }
+    if (this.radicalChars?.includes(char)) return true;
     return char.includes(this.radical);
   }
 
-  _randomChar(isFire) {
-    const pool = isFire ? FIRE_RADICAL_CHARS : NON_FIRE_CHARS;
+  _randomChar(isTarget) {
+    const pool = isTarget ? this.radicalChars : GENERIC_DISTRACTORS;
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
@@ -65,10 +61,10 @@ export class WordMatrix {
     const total = MATRIX_SIZE * MATRIX_SIZE;
     const board = [];
 
-    for (let i = 0; i < FIRE_CELL_COUNT; i++) {
+    for (let i = 0; i < this.targetCells; i++) {
       board.push(this._randomChar(true));
     }
-    for (let i = FIRE_CELL_COUNT; i < total; i++) {
+    for (let i = this.targetCells; i < total; i++) {
       board.push(this._randomChar(false));
     }
 
@@ -91,9 +87,9 @@ export class WordMatrix {
     this._applyBoard(this._generateBoard());
   }
 
-  _handleCorrect(cell) {
+  _handleCorrect(cell, char) {
     cell.classList.add('correct');
-    this.onCorrect(cell.dataset.word);
+    this.onCorrect(char);
 
     setTimeout(() => {
       this._refreshBoard();
@@ -102,7 +98,7 @@ export class WordMatrix {
 
   _handleWrong(cell) {
     cell.classList.add('shake');
-    this.onWrong(cell.dataset.word);
+    this.onWrong();
 
     this.cooldown = true;
     this.container.querySelectorAll('.word-cell').forEach((c) => {
@@ -115,7 +111,7 @@ export class WordMatrix {
         c.classList.remove('cooldown');
       });
       this.cooldown = false;
-    }, COOLDOWN_MS);
+    }, this.wrongCooldownMs);
   }
 
   render() {
@@ -139,4 +135,4 @@ export class WordMatrix {
   }
 }
 
-export { FIRE_RADICAL_CHARS, NON_FIRE_CHARS };
+export { GENERIC_DISTRACTORS as NON_FIRE_CHARS };

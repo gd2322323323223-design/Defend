@@ -5,9 +5,14 @@
 
 import { Game } from '@/game.js';
 import { APP_VERSION } from '@/version.js';
+import { loadSettingsFromURL } from '@/settings.js';
+
+loadSettingsFromURL();
 
 const badge = document.getElementById('version-badge');
 if (badge) badge.textContent = APP_VERSION;
+const checkVer = document.getElementById('check-version');
+if (checkVer) checkVer.textContent = APP_VERSION;
 
 if (/Windows/i.test(navigator.userAgent)) {
   document.body.classList.add('platform-windows');

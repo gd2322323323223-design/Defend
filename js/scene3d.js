@@ -105,15 +105,24 @@ export class Scene3D {
     this.preloadEssentials();
   }
 
-  /** 背景預載動畫與常用模型 */
-  preloadEssentials() {
-    Promise.all([
+  /** 背景預載動畫與常用模型；onProgress(fraction, done, total) */
+  preloadEssentials(onProgress) {
+    const tasks = [
       this._loadAnimClips('hero'),
       this._loadAnimClips('enemy'),
       ...PRELOAD_MODELS.map((p) => this._fetchGLTF(p)),
       ...PRELOAD_EQUIPMENT.map((p) => loadGLTF(p)),
       preloadSpriteSheet(SPLASH04),
-    ]).catch((err) => console.warn('預載資源時發生錯誤', err));
+    ];
+    let done = 0;
+    const total = tasks.length;
+    const tick = () => {
+      done++;
+      onProgress?.(done / total, done, total);
+    };
+    return Promise.all(
+      tasks.map((t) => Promise.resolve(t).then(tick)),
+    ).catch((err) => console.warn('預載資源時發生錯誤', err));
   }
 
   _applyBattleCamera() {

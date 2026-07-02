@@ -1273,3 +1273,248 @@ html, body {
   }
 
 }
+
+/* ===== v2.4 課堂功能 ===== */
+
+.menu-radical-label {
+  color: var(--accent-gold);
+  font-size: 0.95rem;
+  margin-bottom: 12px;
+}
+
+.load-progress-wrap {
+  width: min(420px, 88vw);
+  margin: 0 auto 16px;
+}
+
+.load-progress-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.load-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent-fire), var(--accent-gold));
+  transition: width 0.25s ease;
+}
+
+.load-progress-wrap.loaded .load-progress-text {
+  color: var(--hp-green);
+}
+
+.load-progress-text {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  margin-top: 10px;
+  font-size: 0.9rem;
+  padding: 10px 18px;
+}
+
+.btn-sm {
+  padding: 10px 20px;
+  font-size: 0.95rem;
+  margin-top: 8px;
+}
+
+.teacher-panel {
+  width: min(440px, 92vw);
+  margin-top: 14px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  border: 1px solid rgba(255, 213, 79, 0.35);
+  text-align: left;
+}
+
+.teacher-panel h3 {
+  margin-bottom: 12px;
+  color: var(--accent-gold);
+}
+
+.teacher-field {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+}
+
+.teacher-field select,
+.teacher-field input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text-light);
+}
+
+.teacher-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  font-size: 0.88rem;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-card {
+  background: var(--bg-panel);
+  border: 2px solid var(--accent-gold);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  max-width: 480px;
+  width: 100%;
+}
+
+.modal-card h3 {
+  margin-bottom: 14px;
+}
+
+.checklist {
+  margin: 0 0 18px 1.2em;
+  line-height: 1.65;
+  color: var(--text-light);
+}
+
+.class-synergy-hint {
+  width: min(560px, 92vw);
+  text-align: center;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  background: rgba(124, 77, 255, 0.22);
+  border: 1px solid rgba(124, 77, 255, 0.45);
+  color: #e8eaf6;
+  font-size: 0.9rem;
+}
+
+.boss-next-banner {
+  position: relative;
+  z-index: 12;
+  width: min(640px, 94vw);
+  margin: 0 auto 8px;
+  padding: 10px 16px;
+  text-align: center;
+  font-weight: 800;
+  font-size: clamp(0.85rem, 2.8vw, 1rem);
+  color: #ff8a80;
+  background: rgba(15, 20, 40, 0.92);
+  border: 1px solid rgba(255, 138, 128, 0.45);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.tactical-hint-bar {
+  position: relative;
+  z-index: 12;
+  width: min(640px, 94vw);
+  margin: 0 auto 10px;
+  padding: 8px 14px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--accent-gold);
+  background: rgba(255, 213, 79, 0.12);
+  border: 1px solid rgba(255, 213, 79, 0.35);
+  border-radius: 10px;
+}
+
+.result-edu-recap {
+  width: min(560px, 92vw);
+  margin: 12px 0 16px;
+  padding: 16px 18px;
+  text-align: left;
+  background: rgba(15, 20, 40, 0.88);
+  border: 1px solid rgba(79, 195, 247, 0.35);
+  border-radius: var(--radius);
+  line-height: 1.6;
+}
+
+.recap-list {
+  margin: 8px 0 0 1.2em;
+}
+
+/* 單人 / 雙人模式色調 */
+#app.mode-solo.battle-active .turn-indicator {
+  border: 2px solid rgba(255, 213, 79, 0.55);
+  background: rgba(255, 107, 53, 0.18);
+}
+
+#app.mode-dual.battle-active .turn-indicator {
+  border: 2px solid rgba(79, 195, 247, 0.55);
+  background: rgba(124, 77, 255, 0.18);
+}
+
+#app.mode-solo.battle-active .boss-next-banner {
+  border-color: rgba(255, 213, 79, 0.5);
+  color: #ffd54f;
+}
+
+#app.mode-dual.battle-active .boss-next-banner {
+  border-color: rgba(79, 195, 247, 0.5);
+  color: #81d4fa;
+}
+
+/* 觀戰／投影模式 */
+#app.spectator-mode .players-row {
+  display: none !important;
+}
+
+#app.spectator-mode .turn-indicator {
+  top: 42%;
+  font-size: clamp(1rem, 3.5vw, 1.35rem);
+  padding: 14px 22px;
+  max-width: 96vw;
+}
+
+#app.spectator-mode .boss-next-banner {
+  font-size: clamp(1rem, 3.5vw, 1.25rem);
+  padding: 14px 20px;
+}
+
+#app.spectator-mode .tactical-hint-bar {
+  font-size: clamp(0.9rem, 3vw, 1.1rem);
+  padding: 12px 18px;
+}
+
+#app.spectator-mode .round-score-popup {
+  transform: scale(1.15);
+}
+
+@media (min-width: 600px) {
+  .boss-next-banner {
+    position: fixed;
+    top: max(52px, env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+  }
+
+  #app.spectator-mode .boss-next-banner {
+    top: max(64px, env(safe-area-inset-top));
+    font-size: 1.3rem;
+  }
+}
